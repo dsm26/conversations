@@ -1,7 +1,7 @@
 # conversations.toml
 
 [[conversations]]
-id = "it_essentials"
+id = "it_basics"
 display_name = "Basic Italian"
 spreadsheet_id = "1AMQ68lGQUxVcNtapkB8bhgnyYyn6MrFQvrRWRJ_l6mg"
 worksheet_name = "Conversations"
