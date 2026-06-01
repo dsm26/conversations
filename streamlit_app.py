@@ -39,21 +39,25 @@ def load_scenario_data(spreadsheet_id, worksheet_name):
         df = pd.read_csv(csv_url)
         
         df.columns = [c.strip().replace(' ', '_').lower() for c in df.columns]
-        required = ['scenario_name', 'sequence', 'speaker_tag', 'is_user', 'italian', 'english']
+        
+        # Updated requirement list to include the conversation tracking identifier
+        required = ['scenario_name', 'conversation_id', 'sequence', 'speaker_tag', 'is_user', 'italian', 'english']
         missing = [col for col in required if col not in df.columns]
         if missing:
             st.error(f"⚠️ **Column Alignment Error in Tab '{worksheet_name}'**")
+            st.info(f"**Missing structural columns:** {missing}. Please add a 'conversation_id' column to group variations.")
             return pd.DataFrame()
             
-        # Secure Type Sanitization to eliminate Python structural rendering type exceptions
+        # Secure Type Sanitization to eliminate structural parsing exceptions
         df['sequence'] = pd.to_numeric(df['sequence']).fillna(0).astype(int)
+        df['conversation_id'] = pd.to_numeric(df['conversation_id']).fillna(1).astype(int)
         df['scenario_name'] = df['scenario_name'].fillna('').astype(str).str.strip()
         df['speaker_tag'] = df['speaker_tag'].fillna('').astype(str).str.strip()
         df['italian'] = df['italian'].fillna('').astype(str).str.strip()
         df['english'] = df['english'].fillna('').astype(str).str.strip()
         df['is_user'] = df['is_user'].fillna('FALSE').astype(str).str.strip().str.upper() == 'TRUE'
         
-        return df.sort_values(by=['scenario_name', 'sequence']).reset_index(drop=True)
+        return df.sort_values(by=['scenario_name', 'conversation_id', 'sequence']).reset_index(drop=True)
     except Exception as e:
         st.error(f"Error loading worksheet '{worksheet_name}': {e}")
         return pd.DataFrame()
@@ -74,7 +78,6 @@ else:
     df_all = pd.DataFrame()
     selected_id = None
 
-# Condense the option labels to "English first" and "Italian First"
 display_mode = st.sidebar.radio(
     "Prompt Language:",
     ["Italian First", "English first"]
@@ -82,34 +85,68 @@ display_mode = st.sidebar.radio(
 target_first = "Italian" in display_mode
 
 if not df_all.empty:
-    scenarios = df_all['scenario_name'].unique().tolist()
+    # 📊 CALCULATE DYNAMIC SIDEBAR LABELS WITH COUNTS
+    # Group by scenario name and find the number of unique conversation IDs assigned to it
+    scenario_counts = df_all.groupby('scenario_name')['conversation_id'].nunique().to_dict()
+    unique_scenarios = sorted(list(scenario_counts.keys()))
     
+    # Format choice list arrays to display like: "At the cafe (3)"
+    sidebar_labels = [f"{name} ({scenario_counts[name]})" for name in unique_scenarios]
+    
+    # Navigation tracking initialization
     if 'current_scenario_idx' not in st.session_state or st.session_state.get('last_deck_id') != selected_id:
         st.session_state.current_scenario_idx = 0
+        st.session_state.current_conversation_id = None
         st.session_state.current_line_sequence = 1
         st.session_state.show_translation = False
         st.session_state.last_deck_id = selected_id
 
-    current_scenario = scenarios[st.session_state.current_scenario_idx]
-    df_scenario = df_all[df_all['scenario_name'] == current_scenario].sort_values('sequence').reset_index(drop=True)
+    # Sidebar Scenario Selector Placement (Matches requested feature update)
+    st.sidebar.write("---")
+    selected_sidebar_label = st.sidebar.selectbox(
+        "Available Scenarios:",
+        sidebar_labels,
+        index=st.session_state.current_scenario_idx,
+        key="scenario_selector_widget"
+    )
     
-    total_lines = len(df_scenario)
-    current_row = df_scenario[df_scenario['sequence'] == st.session_state.current_line_sequence]
+    # Sync navigation indices if user updates via selection menu drops
+    new_idx = sidebar_labels.index(selected_sidebar_label)
+    if new_idx != st.session_state.current_scenario_idx:
+        st.session_state.current_scenario_idx = new_idx
+        st.session_state.current_conversation_id = None
+        st.session_state.current_line_sequence = 1
+        st.session_state.show_translation = False
+
+    # Extract active scenario scope parameters
+    current_scenario = unique_scenarios[st.session_state.current_scenario_idx]
+    df_scenario = df_all[df_all['scenario_name'] == current_scenario].sort_values(['conversation_id', 'sequence']).reset_index(drop=True)
+    
+    # Track which unique conversation variation inside this scenario is active
+    available_conv_ids = sorted(df_scenario['conversation_id'].unique().tolist())
+    if st.session_state.current_conversation_id not in available_conv_ids:
+        st.session_state.current_conversation_id = available_conv_ids[0]
+
+    # Filter data down to the specific conversation variation block
+    df_current_conv = df_scenario[df_scenario['conversation_id'] == st.session_state.current_conversation_id].sort_values('sequence').reset_index(drop=True)
+    
+    total_lines = len(df_current_conv)
+    current_row = df_current_conv[df_current_conv['sequence'] == st.session_state.current_line_sequence]
     
     if current_row.empty and total_lines > 0:
-        st.session_state.current_line_sequence = int(df_scenario['sequence'].min())
-        current_row = df_scenario[df_scenario['sequence'] == st.session_state.current_line_sequence]
+        st.session_state.current_line_sequence = int(df_current_conv['sequence'].min())
+        current_row = df_current_conv[df_current_conv['sequence'] == st.session_state.current_line_sequence]
 
     # ----------------------------------------------------
     # 4. MAIN INTERFACE RENDERING
     # ----------------------------------------------------
-    # Just the scenario name, no labels or extra header tags
     st.title(current_scenario)
     
-    # Smaller status indicator sub-line
-    current_num = st.session_state.current_scenario_idx + 1
-    total_scenarios = len(scenarios)
-    st.caption(f"Practicing scenario {current_num} of {total_scenarios}")
+    # Calculate global variation count strings safely
+    current_conv_num = available_conv_ids.index(st.session_state.current_conversation_id) + 1
+    total_convs_for_scenario = len(available_conv_ids)
+    
+    st.caption(f"Practicing conversation branch {current_conv_num} of {total_convs_for_scenario}")
 
     # Dialogue Display Window
     if not current_row.empty:
@@ -124,40 +161,34 @@ if not df_all.empty:
         prompt_text = str(row['italian']) if target_first else str(row['english'])
         translation_text = str(row['english']) if target_first else str(row['italian'])
         
-        # Display the speaker label natively using standard subheaders
         st.markdown(full_speaker_label)
         
-        # Combined Box Content Model using native Streamlit code formatting blocks
         with st.container(border=True):
-            # Uses markdown code blocking to enforce clear monospace fonts (safeguarding 'l' vs 'I')
             st.code(prompt_text, language="text", wrap_lines=True)
             
             if st.session_state.show_translation:
-                st.write("---")
-                st.markdown(f"**Translation:**\n\n*{translation_text}*")
+                st.markdown(f"*{translation_text}*")
 
     # ----------------------------------------------------
-    # 5. NAVIGATION CONTROLS & MOBILITY ERGONOMICS
+    # 5. NAVIGATION CONTROLS & ERGONOMICS BOUNDARIES
     # ----------------------------------------------------
-    min_seq = int(df_scenario['sequence'].min())
-    max_seq = int(df_scenario['sequence'].max())
+    min_seq = int(df_current_conv['sequence'].min())
+    max_seq = int(df_current_conv['sequence'].max())
     
     is_first_line = (st.session_state.current_line_sequence == min_seq)
     is_last_line = (st.session_state.current_line_sequence == max_seq)
 
-    st.write("") # Padding spacer
+    st.write("") 
     
-    # Mobile Action Row 1: The reveal button sits on its own line right over the directions
     if st.button("👁️ Show Answer / Translation", use_container_width=True):
         st.session_state.show_translation = not st.session_state.show_translation
         st.rerun()
 
-    # Mobile Action Row 2: Navigation commands placed split side-by-side on one row
     nav_col_left, nav_col_right = st.columns(2)
 
     with nav_col_left:
         if st.button("⬅️ Previous Line", disabled=is_first_line, use_container_width=True):
-            prev_seqs = df_scenario[df_scenario['sequence'] < st.session_state.current_line_sequence]['sequence']
+            prev_seqs = df_current_conv[df_current_conv['sequence'] < st.session_state.current_line_sequence]['sequence']
             if not prev_seqs.empty:
                 st.session_state.current_line_sequence = int(prev_seqs.max())
                 st.session_state.show_translation = False
@@ -165,23 +196,36 @@ if not df_all.empty:
 
     with nav_col_right:
         if is_last_line:
-            if st.session_state.current_scenario_idx < len(scenarios) - 1:
-                if st.button("🎉 Next Scenario", type="primary", use_container_width=True):
+            # Check if there are more conversation variations inside the current scenario
+            current_conv_idx = available_conv_ids.index(st.session_state.current_conversation_id)
+            
+            if current_conv_idx < len(available_conv_ids) - 1:
+                # Advance to next variation inside the SAME scenario
+                if st.button("Next Conversation Variation ➡️", type="primary", use_container_width=True):
+                    st.session_state.current_conversation_id = available_conv_ids[current_conv_idx + 1]
+                    st.session_state.current_line_sequence = 1
+                    st.session_state.show_translation = False
+                    st.rerun()
+            elif st.session_state.current_scenario_idx < len(unique_scenarios) - 1:
+                # Advance to the first conversation of the NEXT scenario topic block
+                if st.button("🎉 Next Scenario Topic", type="primary", use_container_width=True):
                     st.session_state.current_scenario_idx += 1
+                    st.session_state.current_conversation_id = None
                     st.session_state.current_line_sequence = 1
                     st.session_state.show_translation = False
                     st.rerun()
             else:
                 st.balloons()
-                st.success("🏆 Completed all scenarios in this pack!")
+                st.success("🏆 Completed all conversational practice setups across the index pack!")
                 if st.button("🔄 Restart Pack", use_container_width=True):
                     st.session_state.current_scenario_idx = 0
+                    st.session_state.current_conversation_id = None
                     st.session_state.current_line_sequence = 1
                     st.session_state.show_translation = False
                     st.rerun()
         else:
             if st.button("Next Line ➡️", use_container_width=True):
-                next_seqs = df_scenario[df_scenario['sequence'] > st.session_state.current_line_sequence]['sequence']
+                next_seqs = df_current_conv[df_current_conv['sequence'] > st.session_state.current_line_sequence]['sequence']
                 if not next_seqs.empty:
                     st.session_state.current_line_sequence = int(next_seqs.min())
                     st.session_state.show_translation = False
