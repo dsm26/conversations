@@ -9,24 +9,28 @@ import urllib.parse
 # ----------------------------------------------------
 st.set_page_config(page_title="Scenario Walkthrough", page_icon="🗣️", layout="centered")
 
-# 📱 CLEAN TWO-ROW MOBILE BREAKPOINT PROTECTION
+# 📱 RIGID 50/50 MOBILE VIEWPORT LOCK
 st.html("""
     <style>
-        /* Force side-by-side execution on iPhone Safari/Chrome screens */
+        /* Force single container row to fit side-by-side on all mobile screens */
         [data-testid="stHorizontalBlock"] {
             display: flex !important;
             flex-direction: row !important;
             flex-wrap: nowrap !important;
-            gap: 10px !important;
+            gap: 12px !important;
             width: 100% !important;
         }
         [data-testid="column"] {
-            flex: 1 1 25% !important; /* 4 uniform columns across the container grid */
+            flex: 1 1 50% !important;
             min-width: 0 !important;
             padding: 0 !important;
             margin: 0 !important;
         }
-        /* Lock vertical line-height alignment */
+        /* Tighten vertical rhythm spacing within each stacked column */
+        [data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"] > div > div {
+            gap: 12px !important;
+        }
+        /* Lock button styles from expanding or wrapping text line heights */
         .stButton > button {
             white-space: nowrap !important;
             word-break: keep-all !important;
@@ -151,7 +155,7 @@ if not df_all.empty:
         st.session_state.current_line_sequence = int(df_current_conv['sequence'].min())
         current_row = df_current_conv[df_current_conv['sequence'] == st.session_state.current_line_sequence]
 
-    # ----------------------------------------------------
+# ----------------------------------------------------
     # 4. MAIN INTERFACE RENDERING
     # ----------------------------------------------------
     st.html(f"""
@@ -188,7 +192,7 @@ if not df_all.empty:
                 st.markdown(f"*{translation_text}*")
 
     # ----------------------------------------------------
-    # 5. NAVIGATION CONTROLS & ERGONOMICS (ROW 1 & ROW 2)
+    # 5. FIXED MULTI-ROW CONTROLS (SINGLE HORIZONTAL ELEMENT)
     # ----------------------------------------------------
     min_seq = int(df_current_conv['sequence'].min())
     max_seq = int(df_current_conv['sequence'].max())
@@ -198,25 +202,28 @@ if not df_all.empty:
 
     st.write("") 
     
-    # --- ROW 1: [EMPTY] | TRANSLATE ---
-    row1_left, row1_right = st.columns(2)
-    with row1_left:
-        pass # Intentionally empty space
-    with row1_right:
-        if st.button("Translate", use_container_width=True):
-            st.session_state.show_translation = not st.session_state.show_translation
-            st.rerun()
+    # We use exactly one horizontal block to keep things strictly bounded within 100vw
+    col_left, col_right = st.columns(2)
 
-    # --- ROW 2: PREVIOUS | NEXT ---
-    row2_left, row2_right = st.columns(2)
-    with row2_left:
+    with col_left:
+        # Row 1, Left: Empty space block matching standard button height (42px)
+        st.html('<div style="height: 42px;"></div>')
+        
+        # Row 2, Left: Previous button
         if st.button("⬅️ Previous", disabled=is_first_line, use_container_width=True):
             prev_seqs = df_current_conv[df_current_conv['sequence'] < st.session_state.current_line_sequence]['sequence']
             if not prev_seqs.empty:
                 st.session_state.current_line_sequence = int(prev_seqs.max())
                 st.session_state.show_translation = False
                 st.rerun()
-    with row2_right:
+
+    with col_right:
+        # Row 1, Right: Translate button
+        if st.button("Translate", use_container_width=True):
+            st.session_state.show_translation = not st.session_state.show_translation
+            st.rerun()
+            
+        # Row 2, Right: Next button stack
         if is_last_line:
             current_conv_idx = available_conv_ids.index(st.session_state.current_conversation_id)
             
