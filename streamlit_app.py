@@ -36,7 +36,7 @@ def build_google_sheet_csv_url(spreadsheet_id, worksheet_name):
 
 @st.cache_data(ttl=60)  # Low cache limit (1 min) to easily track structural changes
 def load_scenario_data(spreadsheet_id, worksheet_name):
-    """Fetches data from a specific Google Sheet tab, normalizes headers, and sorts by sequence."""
+    """Fetches data from a specific Google Sheet tab, normalizes headers, and validates row contents."""
     try:
         csv_url = build_google_sheet_csv_url(spreadsheet_id, worksheet_name)
         df = pd.read_csv(csv_url)
@@ -52,38 +52,43 @@ def load_scenario_data(spreadsheet_id, worksheet_name):
             st.info(f"**Expected Columns:** {required}\n\n**Actual Columns Found (Cleaned):** {list(df.columns)}")
             return pd.DataFrame()
             
-        # 🔍 STEP-BY-STEP DATA VALIDATION & EXPLICIT ROW TRACKING
-        # In pandas, the data rows start immediately after the header. 
-        # Adding 2 to the internal data frame index maps it perfectly to the real-world Google Sheets row numbers.
+        # 🔍 STRICT LINE-BY-LINE DATA CLEANING & VALIDATION
+        # Index + 2 maps the data frame loop directly to real-world Google Sheet row layout numbers
         for idx, row in df.iterrows():
             sheet_row_num = idx + 2  
             try:
-                # Validate Sequence column conversion properties
+                # 1. Sequence Verification
                 if pd.isna(row['sequence']):
-                    raise ValueError("The 'Sequence' cell is completely empty or missing.")
-                # Test if sequence is a valid number
+                    raise ValueError("The 'Sequence' column value is empty or missing.")
                 try:
                     float(row['sequence'])
                 except ValueError:
-                    raise ValueError(f"The 'Sequence' value '{row['sequence']}' is text. It must be a clean integer number.")
+                    raise ValueError(f"The 'Sequence' value '{row['sequence']}' is text. It must be an integer.")
                 
-                # Check text integrity across target translation layers
+                # 2. Text Integrity Check
                 for field in ['scenario_name', 'speaker_tag', 'italian', 'english']:
                     if pd.isna(row[field]) or str(row[field]).strip() == "":
-                        raise ValueError(f"The '{field.replace('_', ' ').title()}' cell is blank or unreadable.")
-                        
+                        raise ValueError(f"The '{field.replace('_', ' ').title()}' column value is unreadable or blank.")
+                
+                # 3. Boolean Role Guard (Ensures 'is_user' contains valid parsable data)
+                if pd.isna(row['is_user']) or str(row['is_user']).strip() == "":
+                    raise ValueError("The 'Is User' column value is blank. It must be TRUE or FALSE.")
+
             except Exception as row_error:
-                # Immediately catch data errors, halt construction, and pin-point the spreadsheet grid target
-                st.error(f"❌ **Spreadsheet Data Corruption on Row {sheet_row_num}**")
+                st.error(f"❌ **Spreadsheet Data Error on Row {sheet_row_num}**")
                 st.warning(f"**Underlying Parser Error:** {row_error}")
-                st.info("Fix this row in your Google Sheet and the app will refresh automatically.")
+                st.info("Please verify this row in your Google Sheet. The app will refresh automatically when updated.")
                 return pd.DataFrame()
 
-        # If data validation passes completely, perform standard conversions safely
+        # Secure Type Sanitization (Casts every column safely to completely prevent formatting TypeErrors)
         df['sequence'] = pd.to_numeric(df['sequence']).astype(int)
+        df['scenario_name'] = df['scenario_name'].astype(str).str.strip()
+        df['speaker_tag'] = df['speaker_tag'].astype(str).str.strip()
         df['italian'] = df['italian'].astype(str).str.strip()
         df['english'] = df['english'].astype(str).str.strip()
-        df['speaker_tag'] = df['speaker_tag'].astype(str).str.strip()
+        
+        # Enforce clean boolean matching down the dataframe
+        df['is_user'] = df['is_user'].astype(str).str.strip().str.upper() == 'TRUE'
         
         return df.sort_values(by=['scenario_name', 'sequence']).reset_index(drop=True)
     except Exception as e:
@@ -156,11 +161,11 @@ if not df_all.empty:
     # Dialogue Display Window
     if not current_row.empty:
         row = current_row.iloc[0]
-        speaker = row['speaker_tag']
-        is_user = str(row['is_user']).upper() == 'TRUE'
+        speaker = str(row['speaker_tag'])
+        is_user = bool(row['is_user'])
         
-        prompt_text = row['italian'] if target_first else row['english']
-        translation_text = row['english'] if target_first else row['italian']
+        prompt_text = str(row['italian']) if target_first else str(row['english'])
+        translation_text = str(row['english']) if target_first else str(row['italian'])
         
         alignment = "right" if is_user else "left"
         bg_color = "#e8f0fe" if is_user else "#f1f3f4"
