@@ -9,31 +9,51 @@ import urllib.parse
 # ----------------------------------------------------
 st.set_page_config(page_title="Scenario Walkthrough", page_icon="🗣️", layout="centered")
 
-# 📱 HARDENED IPHONE TWO-COLUMN RESPONSIVE LAYOUT OVERRIDE
+# 📱 INDESTRUCTIBLE CSS GRID FOR IPHONE CHROME & SAFARI VIEWPORTS
 st.html("""
     <style>
-        /* Maintain strict 50/50 horizontal column alignment on small mobile displays */
+        /* Force container to act as a precise 2x2 grid framework */
         [data-testid="stHorizontalBlock"] {
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            gap: 12px !important;
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;   /* 2 equal columns */
+            grid-template-rows: auto auto !important;     /* 2 independent rows */
+            gap: 12px 10px !important;                     /* Row gap, Column gap */
             width: 100% !important;
+            overflow: hidden !important;
         }
+        
+        /* Strip default responsive padding and breakpoint wrap mechanics */
         [data-testid="column"] {
-            flex: 1 1 50% !important;
+            width: 100% !important;
             min-width: 0 !important;
             padding: 0 !important;
             margin: 0 !important;
         }
-        /* Lock vertical rhythm padding within the action column containers */
-        [data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"] > div > div {
-            gap: 10px !important;
+
+        /* 🗺️ LANDMAP TARGET CELL POSITIONING MAP:
+           We drop the empty column block and map the 3 buttons into explicit grid coordinates.
+           - Column 1 (Translate Button) -> Cell Row 1, Column 2 (Top Right)
+           - Column 2 (Previous Button)  -> Cell Row 2, Column 1 (Bottom Left)
+           - Column 3 (Next Button)      -> Cell Row 2, Column 2 (Bottom Right)
+        */
+        [data-testid="column"]:nth-of-type(1) {
+            grid-column: 2 !important;
+            grid-row: 1 !important;
         }
-        /* Keep button text content from clipping or wrapping awkwardly */
+        [data-testid="column"]:nth-of-type(2) {
+            grid-column: 1 !important;
+            grid-row: 2 !important;
+        }
+        [data-testid="column"]:nth-of-type(3) {
+            grid-column: 2 !important;
+            grid-row: 2 !important;
+        }
+
+        /* Normalize button element padding properties across browser viewports */
         .stButton > button {
             white-space: nowrap !important;
             word-break: keep-all !important;
+            width: 100% !important;
         }
     </style>
 """)
@@ -191,7 +211,7 @@ if not df_all.empty:
                 st.markdown(f"*{translation_text}*")
 
     # ----------------------------------------------------
-    # 5. NAVIGATION CONTROLS & MOBILITY ERGONOMICS
+    # 5. NAVIGATION CONTROLS & ERGONOMICS
     # ----------------------------------------------------
     min_seq = int(df_current_conv['sequence'].min())
     max_seq = int(df_current_conv['sequence'].max())
@@ -201,14 +221,17 @@ if not df_all.empty:
 
     st.write("") 
     
-    # Split interface horizontally into two column containers
-    col_left, col_right = st.columns(2)
+    # Generate 3 semantic column blocks. The grid styles layout placement perfectly.
+    col_1, col_2, col_3 = st.columns(3)
 
-    with col_left:
-        # Row 1 Left: Empty to align with your wireframe spacing
-        st.html('<div style="height: 42px; margin-bottom: 10px;"></div>')
-        
-        # Row 2 Left: Previous button
+    with col_1:
+        # Assigned via CSS grid definition to Row 1, Column 2 (Top Right)
+        if st.button("Translate", use_container_width=True):
+            st.session_state.show_translation = not st.session_state.show_translation
+            st.rerun()
+
+    with col_2:
+        # Assigned via CSS grid definition to Row 2, Column 1 (Bottom Left)
         if st.button("⬅️ Previous", disabled=is_first_line, use_container_width=True):
             prev_seqs = df_current_conv[df_current_conv['sequence'] < st.session_state.current_line_sequence]['sequence']
             if not prev_seqs.empty:
@@ -216,13 +239,8 @@ if not df_all.empty:
                 st.session_state.show_translation = False
                 st.rerun()
 
-    with col_right:
-        # Row 1 Right: Translate button
-        if st.button("Translate", use_container_width=True):
-            st.session_state.show_translation = not st.session_state.show_translation
-            st.rerun()
-            
-        # Row 2 Right: Next action button stack
+    with col_3:
+        # Assigned via CSS grid definition to Row 2, Column 2 (Bottom Right)
         if is_last_line:
             current_conv_idx = available_conv_ids.index(st.session_state.current_conversation_id)
             
