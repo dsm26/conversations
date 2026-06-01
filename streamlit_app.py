@@ -28,21 +28,22 @@ else:
 def build_google_sheet_csv_url(spreadsheet_id, worksheet_name):
     """Constructs a direct CSV export URL using the spreadsheet ID and worksheet tab name."""
     base_export_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/export?format=csv"
-    # URL-encode the specific worksheet tab name to safely handle spaces/emojis
+    # URL-encode the worksheet name to safely handle spaces, numbers, and accents
     encoded_worksheet = urllib.parse.quote(worksheet_name)
     return f"{base_export_url}&sheet={encoded_worksheet}"
 
 @st.cache_data(ttl=300)  # Caches data for 5 minutes
 def load_scenario_data(spreadsheet_id, worksheet_name):
-    """Fetches data from a specific targeted Google Sheet tab and sorts it by sequence."""
+    """Fetches data from a specific Google Sheet tab, normalizes headers, and sorts by sequence."""
     try:
         csv_url = build_google_sheet_csv_url(spreadsheet_id, worksheet_name)
         df = pd.read_csv(csv_url)
         
-        # Standardize column naming rules
+        # Normalize column names: strip spaces, replace inner spaces with underscores, force lowercase
+        # This allows human-friendly names like "Scenario Name" in Google Sheets to match "scenario_name" in code
         df.columns = [c.strip().replace(' ', '_').lower() for c in df.columns]
         
-        # Validate critical columns
+        # Code validation checks for normalized names
         required = ['scenario_name', 'sequence', 'speaker_tag', 'is_user', 'italian', 'english']
         missing = [col for col in required if col not in df.columns]
         if missing:
@@ -130,7 +131,7 @@ if not df_all.empty:
         prompt_text = row['italian'] if target_first else row['english']
         translation_text = row['english'] if target_first else row['italian']
         
-        # Establish ergonomic layout positions based on role
+        # Establish ergonomic chat bubble styling positions based on role
         alignment = "right" if is_user else "left"
         bg_color = "#e8f0fe" if is_user else "#f1f3f4"
         text_color = "#1a73e8" if is_user else "#3c4043"
