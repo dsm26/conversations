@@ -9,7 +9,7 @@ import urllib.parse
 # ----------------------------------------------------
 st.set_page_config(page_title="Scenario Walkthrough", page_icon="🗣️", layout="centered")
 
-# 📱 INDESTRUCTIBLE CSS GRID FOR IPHONE CHROME & SAFARI VIEWPORTS
+# 📱 HARDENED CSS GRID MAP FOR IPHONE SAFARI & CHROME VIEWPORTS
 st.html("""
     <style>
         /* Force container to act as a precise 2x2 grid framework */
@@ -30,22 +30,21 @@ st.html("""
             margin: 0 !important;
         }
 
-        /* 🗺️ LANDMAP TARGET CELL POSITIONING MAP:
-           We drop the empty column block and map the 3 buttons into explicit grid coordinates.
-           - Column 1 (Translate Button) -> Cell Row 1, Column 2 (Top Right)
-           - Column 2 (Previous Button)  -> Cell Row 2, Column 1 (Bottom Left)
-           - Column 3 (Next Button)      -> Cell Row 2, Column 2 (Bottom Right)
+        /* 🗺️ TARGET POSITION CELL MAP:
+           - Column 1 (Translate Button)   -> Cell Row 2, Column 2 (Bottom Right)
+           - Column 2 (Previous Button)    -> Cell Row 1, Column 2 (Top Right)
+           - Column 3 (Next Button)        -> Cell Row 2, Column 1 (Bottom Left)
         */
         [data-testid="column"]:nth-of-type(1) {
             grid-column: 2 !important;
-            grid-row: 1 !important;
-        }
-        [data-testid="column"]:nth-of-type(2) {
-            grid-column: 1 !important;
             grid-row: 2 !important;
         }
-        [data-testid="column"]:nth-of-type(3) {
+        [data-testid="column"]:nth-of-type(2) {
             grid-column: 2 !important;
+            grid-row: 1 !important;
+        }
+        [data-testid="column"]:nth-of-type(3) {
+            grid-column: 1 !important;
             grid-row: 2 !important;
         }
 
@@ -221,17 +220,17 @@ if not df_all.empty:
 
     st.write("") 
     
-    # Generate 3 semantic column blocks. The grid styles layout placement perfectly.
+    # Generate 3 semantic column blocks. The grid styles handle layout placement perfectly.
     col_1, col_2, col_3 = st.columns(3)
 
     with col_1:
-        # Assigned via CSS grid definition to Row 1, Column 2 (Top Right)
+        # Assigned via CSS grid definition to Row 2, Column 2 (Bottom Right)
         if st.button("Translate", use_container_width=True):
             st.session_state.show_translation = not st.session_state.show_translation
             st.rerun()
 
     with col_2:
-        # Assigned via CSS grid definition to Row 2, Column 1 (Bottom Left)
+        # Assigned via CSS grid definition to Row 1, Column 2 (Top Right)
         if st.button("⬅️ Previous", disabled=is_first_line, use_container_width=True):
             prev_seqs = df_current_conv[df_current_conv['sequence'] < st.session_state.current_line_sequence]['sequence']
             if not prev_seqs.empty:
@@ -240,7 +239,7 @@ if not df_all.empty:
                 st.rerun()
 
     with col_3:
-        # Assigned via CSS grid definition to Row 2, Column 2 (Bottom Right)
+        # Assigned via CSS grid definition to Row 2, Column 1 (Bottom Left)
         if is_last_line:
             current_conv_idx = available_conv_ids.index(st.session_state.current_conversation_id)
             
