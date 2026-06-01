@@ -367,40 +367,39 @@ if not df_all.empty:
     # 7. MACRO CONVERSATION CONTEXT VIEWER BLOCK
     # ----------------------------------------------------
     st.markdown("---")
-    show_full_context = st.toggle("📋 Show Full Conversation Context", value=False)
+    show_full_context = st.toggle("Show Full conversation", value=False)
     
     if show_full_context:
         primary_col = target_column if target_first else native_column
         secondary_col = native_column if target_first else target_column
         
-        primary_title = primary_label.replace("First", "").replace("first", "").strip()
-        secondary_title = secondary_label.replace("First", "").replace("first", "").strip()
+        primary_title = primary_label.split()[0] if primary_label else "Target"
         
         with st.container(border=True):
-            st.markdown(f"#### 🗣️ Full {primary_title} Script")
-            for _, line in df_current_conv.iterrows():
+            st.markdown(f"#### {primary_title}")
+            for idx, line in df_current_conv.iterrows():
+                line_number = idx + 1
                 is_current = (line['sequence'] == st.session_state.current_line_sequence)
-                prefix = "👉 " if is_current else "• "
                 speaker = f"**{line['speaker_tag']}**"
                 text_content = line[primary_col]
                 
                 if is_current:
-                    st.markdown(f"{prefix}{speaker}: :green[{text_content}]")
+                    st.markdown(f"{line_number}. {speaker}: :green[{text_content}]")
                 else:
-                    st.markdown(f"{prefix}{speaker}: {text_content}")
+                    st.markdown(f"{line_number}. {speaker}: {text_content}")
                     
             st.markdown("---")
             
-            st.markdown(f"#### 📖 Full {secondary_title} Translation")
-            for _, line in df_current_conv.iterrows():
+            st.markdown("#### Translation")
+            for idx, line in df_current_conv.iterrows():
+                line_number = idx + 1
                 is_current = (line['sequence'] == st.session_state.current_line_sequence)
-                prefix = "👉 " if is_current else "• "
                 speaker = f"**{line['speaker_tag']}**"
                 text_content = line[secondary_col]
                 
                 if is_current:
-                    st.markdown(f"{prefix}{speaker}: :red[*{text_content}*]")
+                    st.markdown(f"{line_number}. {speaker}: :red[*{text_content}*]")
                 else:
-                    st.markdown(f"{prefix}{speaker}: *{text_content}*")
+                    st.markdown(f"{line_number}. {speaker}: *{text_content}*")
 else:
     st.info("Verify your setup configurations inside conversations.toml to load your data sets.")
