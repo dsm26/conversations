@@ -3,64 +3,47 @@ import pandas as pd
 import toml
 import os
 import urllib.parse
+import streamlit.components.v1 as components
 
-# ----------------------------------------------------
-# 1. CONFIGURATION & TOML SETUP
-# ----------------------------------------------------
+# Force structural layout optimization for mobile viewports
 st.set_page_config(page_title="Scenario Walkthrough", page_icon="🗣️", layout="centered")
 
-# 📱 BULLETPROOF NATIVE CSS GRID LAYOUT ENGINE (ZERO SCROLLBARS)
-st.html("""
+# ==============================================================================
+# INDESTRUCTIBLE MOBILE GRID & TARGETED INTERFACE BLOCKS
+# ==============================================================================
+st.markdown(
+    """
     <style>
-        /* Target the single button container wrapper */
-        div.custom-button-grid > div [data-testid="stVerticalBlockBorderWrapper"] > div > div {
-            display: grid !important;
-            grid-template-columns: 1fr 1fr !important; /* 2 perfectly equal columns */
-            grid-template-rows: 42px 42px !important;    /* 2 rows with exact rigid heights */
-            gap: 12px 10px !important;                  /* Spacing: Row gap, Column gap */
-            width: 100% !important;
-            max-width: 100% !important;
-            overflow: hidden !important;
-        }
+    /* Target all variations of Streamlit horizontal column layouts */
+    div[data-testid="stHorizontalBlock"], 
+    .stHorizontalBlock, 
+    div[data-fieldname="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important; /* Stop vertical stacking on phone screens */
+        width: 100% !important;
+        gap: 10px !important;
+    }
+    
+    /* Force column items to split the row space precisely 50/50 without blowing out */
+    div[data-testid="stHorizontalBlock"] > div,
+    .stHorizontalBlock > div {
+        flex: 1 1 0% !important;
+        min-width: 0 !important;
+        width: 100% !important;
+    }
 
-        /* 🗺️ PRECISE INTERFACE SLOT COORDINATE MAP
-           We bypass column components entirely and position the native button elements directly:
-           - Button 1 (Translate)      -> Row 1, Column 2 (Top Right)
-           - Button 2 (⬅️ Previous)    -> Row 2, Column 1 (Bottom Left)
-           - Button 3 (Next / Action)  -> Row 2, Column 2 (Bottom Right)
-           (Row 1, Column 1 remains cleanly unoccupied)
-        */
-        div.custom-button-grid div.stButton:nth-of-type(1) {
-            grid-row: 1 !important;
-            grid-column: 2 !important;
-        }
-        div.custom-button-grid div.stButton:nth-of-type(2) {
-            grid-row: 2 !important;
-            grid-column: 1 !important;
-        }
-        div.custom-button-grid div.stButton:nth-of-type(3) {
-            grid-row: 2 !important;
-            grid-column: 2 !important;
-        }
-
-        /* Strip default margins and force full padding containment */
-        div.custom-button-grid div.stButton {
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-
-        /* Lock down button styling attributes inside browser viewport windows */
-        div.custom-button-grid div.stButton > button {
-            white-space: nowrap !important;
-            word-break: keep-all !important;
-            width: 100% !important;
-            height: 42px !important;
-            padding: 0px 8px !important;
-            margin: 0 !important;
-        }
+    /* Keep button text content strictly bound from accidental wrapping */
+    .stButton > button {
+        white-space: nowrap !important;
+        word-break: keep-all !important;
+        width: 100% !important;
+        height: 42px !important;
+    }
     </style>
-""")
+    """,
+    unsafe_allow_html=True
+)
 
 CONFIG_FILE = "conversations.toml"
 
@@ -215,7 +198,31 @@ if not df_all.empty:
                 st.markdown(f"*{translation_text}*")
 
     # ----------------------------------------------------
-    # 5. FIXED CONTROLS ENGINE (SINGLE FLAT CONTAINER GRID)
+    # 5. AUDIO TEXT TO SPEECH SUB-SURFACE
+    # ----------------------------------------------------
+    safe_speech_text = str(row['italian']).replace("'", "\\'") if not current_row.empty else ""
+    
+    tts_html = f"""
+    <div style="display: flex; justify-content: flex-start; align-items: center; gap: 20px; margin-top: 2px; margin-bottom: 6px;">
+        <button onclick="speakText(0.55)" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 5px; touch-action: manipulation;" title="Slow Speed">🐢</button>
+        <button onclick="speakText(0.85)" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 5px; touch-action: manipulation;" title="Normal Speed">🔊</button>
+    </div>
+    <script>
+    function speakText(playbackRate) {{
+        if ('speechSynthesis' in window) {{
+            window.speechSynthesis.cancel();
+            var utterance = new SpeechSynthesisUtterance('{safe_speech_text}');
+            utterance.lang = 'it-IT';
+            utterance.rate = playbackRate;
+            window.speechSynthesis.speak(utterance);
+        }}
+    }}
+    </script>
+    """
+    components.html(tts_html, height=44)
+
+    # ----------------------------------------------------
+    # 6. NAVIGATION CONTROLS INTERFACE (ROW 1 & ROW 2)
     # ----------------------------------------------------
     min_seq = int(df_current_conv['sequence'].min())
     max_seq = int(df_current_conv['sequence'].max())
@@ -225,24 +232,25 @@ if not df_all.empty:
 
     st.write("") 
     
-    # By placing all buttons inside one flat container block with a custom CSS anchor class,
-    # we can manipulate the position layout completely independently of Streamlit primitives.
-    with st.container(key="custom-button-grid"):
-        
-        # Element index 1 -> Routed via CSS to Row 1, Column 2 [Translate]
+    # --- ROW 1: [EMPTY] | TRANSLATE ---
+    row1_col1, row1_col2 = st.columns(2)
+    with row1_col1:
+        st.write("") # Left side remains completely empty space
+    with row1_col2:
         if st.button("Translate", use_container_width=True):
             st.session_state.show_translation = not st.session_state.show_translation
             st.rerun()
 
-        # Element index 2 -> Routed via CSS to Row 2, Column 1 [⬅️ Previous]
+    # --- ROW 2: PREVIOUS | NEXT ---
+    row2_col1, row2_col2 = st.columns(2)
+    with row2_col1:
         if st.button("⬅️ Previous", disabled=is_first_line, use_container_width=True):
             prev_seqs = df_current_conv[df_current_conv['sequence'] < st.session_state.current_line_sequence]['sequence']
             if not prev_seqs.empty:
                 st.session_state.current_line_sequence = int(prev_seqs.max())
                 st.session_state.show_translation = False
                 st.rerun()
-
-        # Element index 3 -> Routed via CSS to Row 2, Column 2 [Next Stack]
+    with row2_col2:
         if is_last_line:
             current_conv_idx = available_conv_ids.index(st.session_state.current_conversation_id)
             
@@ -275,5 +283,9 @@ if not df_all.empty:
                     st.session_state.current_line_sequence = int(next_seqs.min())
                     st.session_state.show_translation = False
                     st.rerun()
+                    
+    # Optional footer pagination tracker data stream
+    footer_string = f"Line {st.session_state.current_line_sequence} of {total_lines}"
+    st.caption(f"<div style='text-align: center; margin-top: 15px;'>{footer_string}</div>", unsafe_allow_html=True)
 else:
     st.info("Verify your setup configurations inside conversations.toml to load your data sets.")
