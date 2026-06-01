@@ -42,7 +42,6 @@ def load_scenario_data(spreadsheet_id, worksheet_name):
         df = pd.read_csv(csv_url)
         
         # Normalize column names: strip spaces, replace inner spaces with underscores, force lowercase
-        # This allows human-friendly names like "Scenario Name" in Google Sheets to match "scenario_name" in code
         df.columns = [c.strip().replace(' ', '_').lower() for c in df.columns]
         
         # Code validation checks for normalized names
@@ -51,10 +50,41 @@ def load_scenario_data(spreadsheet_id, worksheet_name):
         if missing:
             st.error(f"⚠️ **Column Alignment Error in Tab '{worksheet_name}'**")
             st.info(f"**Expected Columns:** {required}\n\n**Actual Columns Found (Cleaned):** {list(df.columns)}")
-            st.markdown("Please ensure row 1 of your Google Sheet contains these distinct cell headers exactly.")
             return pd.DataFrame()
             
+        # 🔍 STEP-BY-STEP DATA VALIDATION & EXPLICIT ROW TRACKING
+        # In pandas, the data rows start immediately after the header. 
+        # Adding 2 to the internal data frame index maps it perfectly to the real-world Google Sheets row numbers.
+        for idx, row in df.iterrows():
+            sheet_row_num = idx + 2  
+            try:
+                # Validate Sequence column conversion properties
+                if pd.isna(row['sequence']):
+                    raise ValueError("The 'Sequence' cell is completely empty or missing.")
+                # Test if sequence is a valid number
+                try:
+                    float(row['sequence'])
+                except ValueError:
+                    raise ValueError(f"The 'Sequence' value '{row['sequence']}' is text. It must be a clean integer number.")
+                
+                # Check text integrity across target translation layers
+                for field in ['scenario_name', 'speaker_tag', 'italian', 'english']:
+                    if pd.isna(row[field]) or str(row[field]).strip() == "":
+                        raise ValueError(f"The '{field.replace('_', ' ').title()}' cell is blank or unreadable.")
+                        
+            except Exception as row_error:
+                # Immediately catch data errors, halt construction, and pin-point the spreadsheet grid target
+                st.error(f"❌ **Spreadsheet Data Corruption on Row {sheet_row_num}**")
+                st.warning(f"**Underlying Parser Error:** {row_error}")
+                st.info("Fix this row in your Google Sheet and the app will refresh automatically.")
+                return pd.DataFrame()
+
+        # If data validation passes completely, perform standard conversions safely
         df['sequence'] = pd.to_numeric(df['sequence']).astype(int)
+        df['italian'] = df['italian'].astype(str).str.strip()
+        df['english'] = df['english'].astype(str).str.strip()
+        df['speaker_tag'] = df['speaker_tag'].astype(str).str.strip()
+        
         return df.sort_values(by=['scenario_name', 'sequence']).reset_index(drop=True)
     except Exception as e:
         st.error(f"Error loading worksheet '{worksheet_name}': {e}")
@@ -66,14 +96,11 @@ def load_scenario_data(spreadsheet_id, worksheet_name):
 st.sidebar.title("🎛️ App Settings")
 
 if CONVERSATIONS_LIST:
-    # Build a selection mapping using the display_name from TOML
     display_names = [item["display_name"] for item in CONVERSATIONS_LIST]
     selected_display = st.sidebar.selectbox("Select Scenario Pack", display_names)
     
-    # Extract the matching configuration dictionary block
     selected_config = next(item for item in CONVERSATIONS_LIST if item["display_name"] == selected_display)
     
-    # Load from the targeted sheet using spreadsheet_id and worksheet_name
     df_all = load_scenario_data(selected_config["spreadsheet_id"], selected_config["worksheet_name"])
     selected_id = selected_config["id"]
 else:
@@ -135,12 +162,10 @@ if not df_all.empty:
         prompt_text = row['italian'] if target_first else row['english']
         translation_text = row['english'] if target_first else row['italian']
         
-        # Establish ergonomic chat bubble styling positions based on role
         alignment = "right" if is_user else "left"
         bg_color = "#e8f0fe" if is_user else "#f1f3f4"
         text_color = "#1a73e8" if is_user else "#3c4043"
         
-        # Custom CSS font-family stack explicitly ensures visual separation between 'l' and 'I'
         st.markdown(
             f"""
             <div style="text-align: {alignment}; margin-bottom: 20px;">
