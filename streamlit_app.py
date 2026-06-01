@@ -50,7 +50,7 @@ st.markdown(
 
     /* Target the main dialogue container to prevent button vertical jumping */
     div[data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stVerticalBlock"] {
-        min-height: 120px;
+        min-height: 180px;
     }
     </style>
     """,
