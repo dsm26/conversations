@@ -9,32 +9,46 @@ import urllib.parse
 # ----------------------------------------------------
 st.set_page_config(page_title="Scenario Walkthrough", page_icon="🗣️", layout="centered")
 
-# 📱 RIGID 50/50 MOBILE VIEWPORT LOCK
+# 📱 ULTIMATE MOBILE VIEWPORT ESCAPE HACK (FORCES INTENDED 2x2 SHAPE ON IPHONE)
 st.html("""
     <style>
-        /* Force single container row to fit side-by-side on all mobile screens */
-        [data-testid="stHorizontalBlock"] {
+        /* 1. Force the outer container block to match the phone screen width exactly */
+        div[data-testid="stHorizontalBlock"] {
+            width: 100% !important;
             display: flex !important;
             flex-direction: row !important;
-            flex-wrap: nowrap !important;
+            flex-wrap: nowrap !important; /* Block columns from shifting down */
             gap: 12px !important;
-            width: 100% !important;
         }
-        [data-testid="column"] {
+        
+        /* 2. Break Streamlit's hidden layout constraints and force a strict 50/50 split */
+        div[data-testid="column"] {
+            width: 50% !important;
+            max-width: 50% !important;
+            min-width: 0 !important; /* Obliterates the hidden ~320px minimum column width constraint */
             flex: 1 1 50% !important;
-            min-width: 0 !important;
             padding: 0 !important;
             margin: 0 !important;
         }
-        /* Tighten vertical rhythm spacing within each stacked column */
-        [data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"] > div > div {
+
+        /* 3. Tighten the space between stacked rows within the columns */
+        div[data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"] > div > div {
             gap: 12px !important;
         }
-        /* Lock button styles from expanding or wrapping text line heights */
-        .stButton > button {
+        
+        /* 4. Strip extra padding from button wrapper divs to guarantee zero bleed */
+        div.stButton {
+            width: 100% !important;
+            margin: 0 !important;
+        }
+
+        /* 5. Force text to stay in a clean single line inside the button borders */
+        div.stButton > button {
             white-space: nowrap !important;
             word-break: keep-all !important;
             width: 100% !important;
+            padding: 0px 8px !important;
+            height: 42px !important;
         }
     </style>
 """)
@@ -155,7 +169,7 @@ if not df_all.empty:
         st.session_state.current_line_sequence = int(df_current_conv['sequence'].min())
         current_row = df_current_conv[df_current_conv['sequence'] == st.session_state.current_line_sequence]
 
-# ----------------------------------------------------
+    # ----------------------------------------------------
     # 4. MAIN INTERFACE RENDERING
     # ----------------------------------------------------
     st.html(f"""
@@ -192,7 +206,7 @@ if not df_all.empty:
                 st.markdown(f"*{translation_text}*")
 
     # ----------------------------------------------------
-    # 5. FIXED MULTI-ROW CONTROLS (SINGLE HORIZONTAL ELEMENT)
+    # 5. FIXED MULTI-ROW CONTROLS (50/50 EMBEDDED BLOCK)
     # ----------------------------------------------------
     min_seq = int(df_current_conv['sequence'].min())
     max_seq = int(df_current_conv['sequence'].max())
@@ -202,11 +216,11 @@ if not df_all.empty:
 
     st.write("") 
     
-    # We use exactly one horizontal block to keep things strictly bounded within 100vw
+    # Executing everything inside a single, bound container split
     col_left, col_right = st.columns(2)
 
     with col_left:
-        # Row 1, Left: Empty space block matching standard button height (42px)
+        # Row 1, Left: Empty structural spacer matching standard action button block height
         st.html('<div style="height: 42px;"></div>')
         
         # Row 2, Left: Previous button
