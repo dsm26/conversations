@@ -9,42 +9,31 @@ import urllib.parse
 # ----------------------------------------------------
 st.set_page_config(page_title="Scenario Walkthrough", page_icon="🗣️", layout="centered")
 
-# 📱 HARDENED 2x2 GRID FOR IPHONE CHROME & SAFARI VIEWPORTS
+# 📱 HARDENED IPHONE TWO-COLUMN RESPONSIVE LAYOUT OVERRIDE
 st.html("""
     <style>
-        /* Target the horizontal block structure container */
+        /* Maintain strict 50/50 horizontal column alignment on small mobile displays */
         [data-testid="stHorizontalBlock"] {
-            display: grid !important;
-            grid-template-columns: 1fr 1fr !important; /* 2 equal columns */
-            grid-template-rows: auto auto !important;   /* 2 responsive rows */
-            gap: 10px !important;
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            gap: 12px !important;
             width: 100% !important;
-            overflow: hidden !important;
         }
-        
-        /* Strip default structural responsive breakpoints that trigger stacking on mobile */
         [data-testid="column"] {
-            width: 100% !important;
+            flex: 1 1 50% !important;
             min-width: 0 !important;
             padding: 0 !important;
             margin: 0 !important;
         }
-
-        /* 🗺️ DEFINE THE EXACT POSITION GRID CELL MAP:
-           Row 1: Empty Column [1] | Translate Column [2]
-           Row 2: Previous Column [3] | Next Column [4]
-        */
-        [data-testid="column"]:nth-of-type(1) {
-            grid-column: 2 !important;
-            grid-row: 1 !important;
+        /* Lock vertical rhythm padding within the action column containers */
+        [data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"] > div > div {
+            gap: 10px !important;
         }
-        [data-testid="column"]:nth-of-type(2) {
-            grid-column: 1 !important;
-            grid-row: 2 !important;
-        }
-        [data-testid="column"]:nth-of-type(3) {
-            grid-column: 2 !important;
-            grid-row: 2 !important;
+        /* Keep button text content from clipping or wrapping awkwardly */
+        .stButton > button {
+            white-space: nowrap !important;
+            word-break: keep-all !important;
         }
     </style>
 """)
@@ -202,7 +191,7 @@ if not df_all.empty:
                 st.markdown(f"*{translation_text}*")
 
     # ----------------------------------------------------
-    # 5. NAVIGATION CONTROLS & ERGONOMICS
+    # 5. NAVIGATION CONTROLS & MOBILITY ERGONOMICS
     # ----------------------------------------------------
     min_seq = int(df_current_conv['sequence'].min())
     max_seq = int(df_current_conv['sequence'].max())
@@ -212,17 +201,14 @@ if not df_all.empty:
 
     st.write("") 
     
-    # We declare 3 columns. The CSS grid overrides their layout alignment into the proper 2x2 form factor.
-    btn_col_1, btn_col_2, btn_col_3 = st.columns(3)
+    # Split interface horizontally into two column containers
+    col_left, col_right = st.columns(2)
 
-    with btn_col_1:
-        # Maps directly to Row 1, Column 2 (Right side)
-        if st.button("Translate", use_container_width=True):
-            st.session_state.show_translation = not st.session_state.show_translation
-            st.rerun()
-
-    with btn_col_2:
-        # Maps directly to Row 2, Column 1 (Left side)
+    with col_left:
+        # Row 1 Left: Empty to align with your wireframe spacing
+        st.html('<div style="height: 42px; margin-bottom: 10px;"></div>')
+        
+        # Row 2 Left: Previous button
         if st.button("⬅️ Previous", disabled=is_first_line, use_container_width=True):
             prev_seqs = df_current_conv[df_current_conv['sequence'] < st.session_state.current_line_sequence]['sequence']
             if not prev_seqs.empty:
@@ -230,8 +216,13 @@ if not df_all.empty:
                 st.session_state.show_translation = False
                 st.rerun()
 
-    with btn_col_3:
-        # Maps directly to Row 2, Column 2 (Right side)
+    with col_right:
+        # Row 1 Right: Translate button
+        if st.button("Translate", use_container_width=True):
+            st.session_state.show_translation = not st.session_state.show_translation
+            st.rerun()
+            
+        # Row 2 Right: Next action button stack
         if is_last_line:
             current_conv_idx = available_conv_ids.index(st.session_state.current_conversation_id)
             
