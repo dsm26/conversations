@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import toml
 import os
@@ -161,42 +162,42 @@ if not df_all.empty:
     if not current_row.empty:
         row = current_row.iloc[0]
         
-        # 🛡️ SANITIZATION ESCAPES
         speaker_name = str(row['speaker_tag']).replace('"', '&quot;').replace("'", "&#39;")
         is_user = bool(row['is_user'])
         
-        # Calculate suffix out here to completely avoid Python f-string tokenization limits
         user_suffix = " (You)" if is_user else ""
         full_speaker_label = f"{speaker_name}{user_suffix}"
         
         raw_prompt = str(row['italian']) if target_first else str(row['english'])
         raw_translation = str(row['english']) if target_first else str(row['italian'])
         
-        # Escape string symbols that could cause issues with Markdown/HTML formatting
-        prompt_text = raw_prompt.replace('"', '&quot;').replace("'", "&#39;").replace('$', '\$')
-        translation_text = raw_translation.replace('"', '&quot;').replace("'", "&#39;").replace('$', '\$')
+        prompt_text = raw_prompt.replace('"', '&quot;').replace("'", "&#39;")
+        translation_text = raw_translation.replace('"', '&quot;').replace("'", "&#39;")
         
         alignment = "right" if is_user else "left"
         bg_color = "#e8f0fe" if is_user else "#f1f3f4"
         text_color = "#1a73e8" if is_user else "#3c4043"
         
-        # Build raw strings with zero inner conditional calculations
-        chat_html = (
-            f'<div style="text-align: {alignment}; margin-bottom: 20px;">'
-            f'    <span style="font-size: 0.85em; font-weight: bold; color: #5f6368; display: block; margin-bottom: 4px; font-family: -apple-system, sans-serif;">'
-            f'        {full_speaker_label}'
-            f'    </span>'
-            f'    <div style="display: inline-block; padding: 14px 20px; background-color: {bg_color}; '
-            f'                border-radius: 15px; max-width: 75%; text-align: left; '
-            f'                box-shadow: 0 1px 2px rgba(0,0,0,0.1); border: 1px solid rgba(0,0,0,0.05);">'
-            f'        <p style="font-family: \'Consolas\', \'Monaco\', \'Courier New\', monospace; font-size: 1.3em; margin: 0; color: {text_color}; font-weight: 500; letter-spacing: 0.5px;">'
-            f'            {prompt_text}'
-            f'        </p>'
-            f'    </div>'
-            f'</div>'
-        )
+        # Calculate dynamic rendering height based on text footprint to prevent native iframe scrollbars
+        estimated_height = max(110, 85 + (len(prompt_text) // 50) * 25)
         
-        st.markdown(chat_html, unsafe_html=True)
+        chat_html = f"""
+        <div style="text-align: {alignment}; margin-bottom: 10px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; direction: ltr;">
+            <span style="font-size: 13px; font-weight: bold; color: #5f6368; display: block; margin-bottom: 5px; padding-left: 5px; padding-right: 5px;">
+                {full_speaker_label}
+            </span>
+            <div style="display: inline-block; padding: 14px 20px; background-color: {bg_color}; 
+                        border-radius: 15px; max-width: 80%; text-align: left; 
+                        box-shadow: 0 1px 2px rgba(0,0,0,0.1); border: 1px solid rgba(0,0,0,0.05);">
+                <p style="font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 20px; margin: 0; color: {text_color}; font-weight: 500; letter-spacing: 0.5px; line-height: 1.4; white-space: pre-wrap; word-break: break-word;">
+                    {prompt_text}
+                </p>
+            </div>
+        </div>
+        """
+        
+        # Render bubble securely using native HTML components
+        components.html(chat_html, height=estimated_height, scrolling=False)
 
         # Translation/Reveal Panel Card
         col_space, col_btn_reveal, col_cb = st.columns([1, 2, 2])
@@ -205,16 +206,17 @@ if not df_all.empty:
                 st.session_state.show_translation = not st.session_state.show_translation
         
         if st.session_state.show_translation:
-            translation_html = (
-                f'<div style="background-color: #f8f9fa; padding: 15px; border-left: 5px solid #34a853; '
-                f'            border-radius: 4px; margin: 15px 0; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);">'
-                f'    <strong style="color: #202124; font-family: -apple-system, sans-serif;">Translation:</strong>'
-                f'    <p style="font-family: \'Consolas\', \'Monaco\', \'Courier New\', monospace; font-size: 1.2em; margin-top: 5px; color: #3c4043; font-style: italic;">'
-                f'        {translation_text}'
-                f'    </p>'
-                f'</div>'
-            )
-            st.markdown(translation_html, unsafe_html=True)
+            est_trans_height = max(90, 65 + (len(translation_text) // 60) * 25)
+            translation_html = f"""
+            <div style="background-color: #f8f9fa; padding: 15px; border-left: 5px solid #34a853; 
+                        border-radius: 4px; font-family: -apple-system, BlinkMacSystemFont, sans-serif; direction: ltr;">
+                <strong style="color: #202124; font-size: 14px;">Translation:</strong>
+                <p style="font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 18px; margin: 5px 0 0 0; color: #3c4043; font-style: italic; white-space: pre-wrap; word-break: break-word;">
+                    {translation_text}
+                </p>
+            </div>
+            """
+            components.html(translation_html, height=est_trans_height, scrolling=False)
 
     st.write("---")
 
