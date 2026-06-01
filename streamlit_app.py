@@ -127,6 +127,19 @@ display_mode = st.sidebar.radio(
 )
 target_first = "Italian" in display_mode
 
+# 🐢 DYNAMIC SLOW PLAYBACK SPEED SLIDER
+st.sidebar.write("---")
+slow_speed_percent = st.sidebar.slider(
+    "Slow Playback Speed:",
+    min_value=10,
+    max_value=90,
+    value=30,
+    step=5,
+    format="%d%%"
+)
+# Convert the clean integer scale (10-90) into decimal speech rates (0.10-0.90)
+slow_playback_rate = slow_speed_percent / 100.0
+
 if not df_all.empty:
     scenario_counts = df_all.groupby('scenario_name')['conversation_id'].nunique().to_dict()
     unique_scenarios = sorted(list(scenario_counts.keys()))
@@ -272,7 +285,7 @@ if not df_all.empty:
     with top_actions_left:
         tts_html = f"""
         <div style="display: flex; justify-content: flex-start; align-items: center; gap: 25px; height: 44px; margin-top: 2px;">
-            <button onclick="speakText(0.30)" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 2px; touch-action: manipulation;" title="Slow Speed">🐢</button>
+            <button onclick="speakText({slow_playback_rate})" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 2px; touch-action: manipulation;" title="Slow Speed">🐢</button>
             <button onclick="speakText(0.85)" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 2px; touch-action: manipulation;" title="Normal Speed">🔊</button>
         </div>
         <script>
@@ -321,7 +334,7 @@ if not df_all.empty:
                 st.session_state.show_translation = False
                 st.rerun()
                 
-        # Configuration 3: Mid-tier sequence flow step back (Icon removed)
+        # Configuration 3: Mid-tier sequence flow step back
         else:
             if st.button("Previous", use_container_width=True):
                 if is_first_line_of_conv:
