@@ -53,7 +53,6 @@ def load_scenario_data(spreadsheet_id, worksheet_name):
             return pd.DataFrame()
             
         # 🔍 STRICT LINE-BY-LINE DATA CLEANING & VALIDATION
-        # Index + 2 maps the data frame loop directly to real-world Google Sheet row layout numbers
         for idx, row in df.iterrows():
             sheet_row_num = idx + 2  
             try:
@@ -70,7 +69,7 @@ def load_scenario_data(spreadsheet_id, worksheet_name):
                     if pd.isna(row[field]) or str(row[field]).strip() == "":
                         raise ValueError(f"The '{field.replace('_', ' ').title()}' column value is unreadable or blank.")
                 
-                # 3. Boolean Role Guard (Ensures 'is_user' contains valid parsable data)
+                # 3. Boolean Role Guard
                 if pd.isna(row['is_user']) or str(row['is_user']).strip() == "":
                     raise ValueError("The 'Is User' column value is blank. It must be TRUE or FALSE.")
 
@@ -80,7 +79,7 @@ def load_scenario_data(spreadsheet_id, worksheet_name):
                 st.info("Please verify this row in your Google Sheet. The app will refresh automatically when updated.")
                 return pd.DataFrame()
 
-        # Secure Type Sanitization (Casts every column safely to completely prevent formatting TypeErrors)
+        # Secure Type Sanitization
         df['sequence'] = pd.to_numeric(df['sequence']).astype(int)
         df['scenario_name'] = df['scenario_name'].astype(str).str.strip()
         df['speaker_tag'] = df['speaker_tag'].astype(str).str.strip()
@@ -161,33 +160,39 @@ if not df_all.empty:
     # Dialogue Display Window
     if not current_row.empty:
         row = current_row.iloc[0]
-        speaker = str(row['speaker_tag'])
+        
+        # 🛡️ SANITIZATION ESCAPES: Replaces characters that mess up markdown or break HTML formatting
+        speaker = str(row['speaker_tag']).replace('"', '&quot;').replace("'", "&#39;")
         is_user = bool(row['is_user'])
         
-        prompt_text = str(row['italian']) if target_first else str(row['english'])
-        translation_text = str(row['english']) if target_first else str(row['italian'])
+        raw_prompt = str(row['italian']) if target_first else str(row['english'])
+        raw_translation = str(row['english']) if target_first else str(row['italian'])
+        
+        # Escape HTML structural conflicts and prevent Streamlit math block rendering issues ($)
+        prompt_text = raw_prompt.replace('"', '&quot;').replace("'", "&#39;").replace('$', '\$')
+        translation_text = raw_translation.replace('"', '&quot;').replace("'", "&#39;").replace('$', '\$')
         
         alignment = "right" if is_user else "left"
         bg_color = "#e8f0fe" if is_user else "#f1f3f4"
         text_color = "#1a73e8" if is_user else "#3c4043"
         
-        st.markdown(
-            f"""
-            <div style="text-align: {alignment}; margin-bottom: 20px;">
-                <span style="font-size: 0.85em; font-weight: bold; color: #5f6368; display: block; margin-bottom: 4px; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
-                    {speaker} {'(You)' if is_user else ''}
-                </span>
-                <div style="display: inline-block; padding: 14px 20px; background-color: {bg_color}; 
-                            border-radius: 15px; max-width: 75%; text-align: left; 
-                            box-shadow: 0 1px 2px rgba(0,0,0,0.1); border: 1px solid rgba(0,0,0,0.05);">
-                    <p style="font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 1.3em; margin: 0; color: {text_color}; font-weight: 500; letter-spacing: 0.5px;">
-                        {prompt_text}
-                    </p>
-                </div>
-            </div>
-            """, 
-            unsafe_html=True
+        # Inject styling elements carefully
+        chat_html = (
+            f'<div style="text-align: {alignment}; margin-bottom: 20px;">'
+            f'    <span style="font-size: 0.85em; font-weight: bold; color: #5f6368; display: block; margin-bottom: 4px; font-family: -apple-system, sans-serif;">'
+            f'        {speaker} {"(You)" if is_user else ""}'
+            f'    </span>'
+            f'    <div style="display: inline-block; padding: 14px 20px; background-color: {bg_color}; '
+            f'                border-radius: 15px; max-width: 75%; text-align: left; '
+            f'                box-shadow: 0 1px 2px rgba(0,0,0,0.1); border: 1px solid rgba(0,0,0,0.05);">'
+            f'        <p style="font-family: \'Consolas\', \'Monaco\', \'Courier New\', monospace; font-size: 1.3em; margin: 0; color: {text_color}; font-weight: 500; letter-spacing: 0.5px;">'
+            f'            {prompt_text}'
+            f'        </p>'
+            f'    </div>'
+            f'</div>'
         )
+        
+        st.markdown(chat_html, unsafe_html=True)
 
         # Translation/Reveal Panel Card
         col_space, col_btn_reveal, col_cb = st.columns([1, 2, 2])
@@ -196,18 +201,16 @@ if not df_all.empty:
                 st.session_state.show_translation = not st.session_state.show_translation
         
         if st.session_state.show_translation:
-            st.markdown(
-                f"""
-                <div style="background-color: #f8f9fa; padding: 15px; border-left: 5px solid #34a853; 
-                            border-radius: 4px; margin: 15px 0; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);">
-                    <strong style="color: #202124; font-family: -apple-system, sans-serif;">Translation:</strong>
-                    <p style="font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 1.2em; margin-top: 5px; color: #3c4043; font-style: italic;">
-                        {translation_text}
-                    </p>
-                </div>
-                """, 
-                unsafe_html=True
+            translation_html = (
+                f'<div style="background-color: #f8f9fa; padding: 15px; border-left: 5px solid #34a853; '
+                f'            border-radius: 4px; margin: 15px 0; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);">'
+                f'    <strong style="color: #202124; font-family: -apple-system, sans-serif;">Translation:</strong>'
+                f'    <p style="font-family: \'Consolas\', \'Monaco\', \'Courier New\', monospace; font-size: 1.2em; margin-top: 5px; color: #3c4043; font-style: italic;">'
+                f'        {translation_text}'
+                f'    </p>'
+                f'</div>'
             )
+            st.markdown(translation_html, unsafe_html=True)
 
     st.write("---")
 
