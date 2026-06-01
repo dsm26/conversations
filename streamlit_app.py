@@ -20,22 +20,27 @@ st.set_page_config(page_title="Scenario Walkthrough", page_icon="💡", layout="
 st.markdown(
     """
     <style>
+    /* Target all variations of Streamlit horizontal column layouts */
     div[data-testid="stHorizontalBlock"], 
     .stHorizontalBlock, 
     div[data-fieldname="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
-        flex-wrap: nowrap !important;
+        flex-wrap: nowrap !important; /* Stop vertical stacking on phone screens */
         width: 100% !important;
         gap: 10px !important;
         align-items: center !important;
     }
+    
+    /* Force column items to split the row space precisely split without blowing out */
     div[data-testid="stHorizontalBlock"] > div,
     .stHorizontalBlock > div {
         flex: 1 1 0% !important;
         min-width: 0 !important;
         width: 100% !important;
     }
+
+    /* Keep button text content strictly bound from accidental wrapping */
     .stButton > button {
         white-space: nowrap !important;
         word-break: keep-all !important;
@@ -164,6 +169,7 @@ if not df_all.empty:
     unique_scenarios = sorted(list(scenario_counts.keys()))
     sidebar_labels = [f"{name} ({scenario_counts[name]})" for name in unique_scenarios]
     
+    # Core Global State Initialization Block
     if 'current_scenario_idx' not in st.session_state or st.session_state.get('last_deck_id') != selected_id:
         st.session_state.current_scenario_idx = 0
         st.session_state.current_conversation_id = None
@@ -173,6 +179,7 @@ if not df_all.empty:
 
     st.sidebar.write("---")
     
+    # CALLBACK NAVIGATION STATE SYNC FIX
     def handle_scenario_jump():
         if "scenario_selector_widget" in st.session_state:
             chosen_label = st.session_state.scenario_selector_widget
@@ -242,12 +249,12 @@ if not df_all.empty:
         user_suffix = " (You)" if is_user else ""
         full_speaker_label = f"**{speaker_name}{user_suffix}**"
         
-        # Pull text blocks fluidly based on the toml structural configurations
         prompt_text = str(row[target_column]) if target_first else str(row[native_column])
         translation_text = str(row[native_column]) if target_first else str(row[target_column])
         
         st.markdown(full_speaker_label)
         
+        # Native fluid container eliminates clipping and light/dark theme bugs entirely
         with st.container(border=True):
             st.markdown(f"### {prompt_text}")
             if st.session_state.show_translation:
@@ -256,13 +263,11 @@ if not df_all.empty:
     # ----------------------------------------------------
     # 5. INLINE AUDIO & TRANSLATE ROW CONTROL
     # ----------------------------------------------------
-    # Text-to-speech always speaks the targeted training column string content
     safe_speech_text = str(row[target_column]).replace("'", "\\'") if not current_row.empty else ""
     
     top_actions_left, top_actions_right = st.columns(2)
     
     with top_actions_left:
-        # Dynamically map the target_lang_code ('it-IT', 'es-ES', etc.) straight into Web Speech engine
         tts_html = f"""
         <div style="display: flex; justify-content: flex-start; align-items: center; gap: 25px; height: 44px; margin-top: 2px;">
             <button onclick="speakText({slow_playback_rate})" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 2px; touch-action: manipulation;" title="Slow Speed">🐢</button>
@@ -357,5 +362,45 @@ if not df_all.empty:
                     st.session_state.current_line_sequence = int(next_seqs.min())
                     st.session_state.show_translation = False
                     st.rerun()
+
+    # ----------------------------------------------------
+    # 7. MACRO CONVERSATION CONTEXT VIEWER BLOCK
+    # ----------------------------------------------------
+    st.markdown("---")
+    show_full_context = st.toggle("📋 Show Full Conversation Context", value=False)
+    
+    if show_full_context:
+        primary_col = target_column if target_first else native_column
+        secondary_col = native_column if target_first else target_column
+        
+        primary_title = primary_label.replace("First", "").replace("first", "").strip()
+        secondary_title = secondary_label.replace("First", "").replace("first", "").strip()
+        
+        with st.container(border=True):
+            st.markdown(f"#### 🗣️ Full {primary_title} Script")
+            for _, line in df_current_conv.iterrows():
+                is_current = (line['sequence'] == st.session_state.current_line_sequence)
+                prefix = "👉 " if is_current else "• "
+                speaker = f"**{line['speaker_tag']}**"
+                text_content = line[primary_col]
+                
+                if is_current:
+                    st.markdown(f"{prefix}{speaker}: :green[{text_content}]")
+                else:
+                    st.markdown(f"{prefix}{speaker}: {text_content}")
+                    
+            st.markdown("---")
+            
+            st.markdown(f"#### 📖 Full {secondary_title} Translation")
+            for _, line in df_current_conv.iterrows():
+                is_current = (line['sequence'] == st.session_state.current_line_sequence)
+                prefix = "👉 " if is_current else "• "
+                speaker = f"**{line['speaker_tag']}**"
+                text_content = line[secondary_col]
+                
+                if is_current:
+                    st.markdown(f"{prefix}{speaker}: :red[*{text_content}*]")
+                else:
+                    st.markdown(f"{prefix}{speaker}: *{text_content}*")
 else:
     st.info("Verify your setup configurations inside conversations.toml to load your data sets.")
