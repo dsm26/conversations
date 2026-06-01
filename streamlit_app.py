@@ -272,7 +272,7 @@ if not df_all.empty:
     with top_actions_left:
         tts_html = f"""
         <div style="display: flex; justify-content: flex-start; align-items: center; gap: 25px; height: 44px; margin-top: 2px;">
-            <button onclick="speakText(0.55)" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 2px; touch-action: manipulation;" title="Slow Speed">🐢</button>
+            <button onclick="speakText(0.30)" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 2px; touch-action: manipulation;" title="Slow Speed">🐢</button>
             <button onclick="speakText(0.85)" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 2px; touch-action: manipulation;" title="Normal Speed">🔊</button>
         </div>
         <script>
