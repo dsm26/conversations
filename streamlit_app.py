@@ -9,6 +9,24 @@ import urllib.parse
 # ----------------------------------------------------
 st.set_page_config(page_title="Scenario Walkthrough", page_icon="🗣️", layout="centered")
 
+# 📱 INJECT ERGONOMIC MOBILE FLEXBOX FORCE STYLING
+st.html("""
+    <style>
+        /* Force Streamlit column blocks to stay side-by-side on mobile screens */
+        [data-testid="stHorizontalBlock"] {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            width: 100% !important;
+        }
+        [data-testid="column"] {
+            width: 50% !important;
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
+        }
+    </style>
+""")
+
 CONFIG_FILE = "conversations.toml"
 
 if os.path.exists(CONFIG_FILE):
@@ -115,7 +133,8 @@ if not df_all.empty:
     if st.session_state.current_conversation_id not in available_conv_ids:
         st.session_state.current_conversation_id = available_conv_ids[0]
 
-    df_current_conv = df_scenario[df_scenario['conversation_id'] == st.session_state.current_conversation_id].sort_values('sequence').reset_index(drop=True)
+    df_current_conv = df_scenario[df_scenario['scenario_name'] == current_scenario]
+    df_current_conv = df_current_conv[df_current_conv['conversation_id'] == st.session_state.current_conversation_id].sort_values('sequence').reset_index(drop=True)
     
     total_lines = len(df_current_conv)
     current_row = df_current_conv[df_current_conv['sequence'] == st.session_state.current_line_sequence]
@@ -127,7 +146,6 @@ if not df_all.empty:
     # ----------------------------------------------------
     # 4. MAIN INTERFACE RENDERING
     # ----------------------------------------------------
-    # Renders the title with custom inline styles to prevent massive heading blocks
     st.html(f"""
         <div style="margin-top: 10px; margin-bottom: 2px;">
             <span style="font-size: 24px; font-weight: 700; color: #202124; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
@@ -138,8 +156,6 @@ if not df_all.empty:
     
     current_conv_num = available_conv_ids.index(st.session_state.current_conversation_id) + 1
     total_convs_for_scenario = len(available_conv_ids)
-    
-    # Subheading word "Branch" removed completely
     st.caption(f"Practicing conversation {current_conv_num} of {total_convs_for_scenario}")
 
     # Dialogue Display Window
@@ -178,10 +194,11 @@ if not df_all.empty:
         st.session_state.show_translation = not st.session_state.show_translation
         st.rerun()
 
+    # Layout Row: Navigation layout forced side-by-side using styling hooks
     nav_col_left, nav_col_right = st.columns(2)
 
     with nav_col_left:
-        if st.button("⬅️ Previous Line", disabled=is_first_line, use_container_width=True):
+        if st.button("⬅️ Previous", disabled=is_first_line, use_container_width=True):
             prev_seqs = df_current_conv[df_current_conv['sequence'] < st.session_state.current_line_sequence]['sequence']
             if not prev_seqs.empty:
                 st.session_state.current_line_sequence = int(prev_seqs.max())
@@ -193,13 +210,13 @@ if not df_all.empty:
             current_conv_idx = available_conv_ids.index(st.session_state.current_conversation_id)
             
             if current_conv_idx < len(available_conv_ids) - 1:
-                if st.button("Next Conversation ➡️", type="primary", use_container_width=True):
+                if st.button("Next Conv ➡️", type="primary", use_container_width=True):
                     st.session_state.current_conversation_id = available_conv_ids[current_conv_idx + 1]
                     st.session_state.current_line_sequence = 1
                     st.session_state.show_translation = False
                     st.rerun()
             elif st.session_state.current_scenario_idx < len(unique_scenarios) - 1:
-                if st.button("🎉 Next Scenario Topic", type="primary", use_container_width=True):
+                if st.button("Next Topic ➡️", type="primary", use_container_width=True):
                     st.session_state.current_scenario_idx += 1
                     st.session_state.current_conversation_id = None
                     st.session_state.current_line_sequence = 1
@@ -207,8 +224,8 @@ if not df_all.empty:
                     st.rerun()
             else:
                 st.balloons()
-                st.success("🏆 Completed all conversational practice setups across the index pack!")
-                if st.button("🔄 Restart Pack", use_container_width=True):
+                st.success("🏆 Completed all setups!")
+                if st.button("🔄 Restart", use_container_width=True):
                     st.session_state.current_scenario_idx = 0
                     st.session_state.current_conversation_id = None
                     st.session_state.current_line_sequence = 1
