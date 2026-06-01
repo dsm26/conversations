@@ -127,7 +127,7 @@ display_mode = st.sidebar.radio(
 )
 target_first = "Italian" in display_mode
 
-# 🐢 DYNAMIC SLOW PLAYBACK SPEED SLIDER
+# DYNAMIC SLOW PLAYBACK SPEED SLIDER
 st.sidebar.write("---")
 slow_speed_percent = st.sidebar.slider(
     "Slow Playback Speed:",
@@ -137,7 +137,6 @@ slow_speed_percent = st.sidebar.slider(
     step=5,
     format="%d%%"
 )
-# Convert the clean integer scale (10-90) into decimal speech rates (0.10-0.90)
 slow_playback_rate = slow_speed_percent / 100.0
 
 if not df_all.empty:
@@ -234,46 +233,12 @@ if not df_all.empty:
         
         st.markdown(full_speaker_label)
         
-        # Statically scaled layout card matching exact look, feel, and crisp 24px font size
-        card_html = f"""
-        <style>
-            .convo-card-canvas {{
-                background-color: #1E1E1E; 
-                border: 2px solid #36393F;
-                border-radius: 12px;
-                padding: 20px;
-                text-align: left;
-                min-height: 100px;
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                box-sizing: border-box;
-            }}
-            .convo-main-text {{ 
-                font-size: 24px; 
-                font-weight: normal; 
-                color: #FFFFFF; 
-                line-height: 1.3; 
-                font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-            }}
-            .convo-trans-text {{
-                color: #FF4B4B; 
-                font-size: 20px; 
-                margin-top: 12px; 
-                font-style: italic;
-                font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-            }}
-            @media (prefers-color-scheme: light) {{
-                .convo-card-canvas {{ background-color: #F0F2F6; border-color: #E0E2E6; }}
-                .convo-main-text {{ color: #111111; }}
-            }}
-        </style>
-        <div class="convo-card-canvas">
-            <div class="convo-main-text">{prompt_text}</div>
-            {"<div class='convo-trans-text'>" + translation_text + "</div>" if st.session_state.show_translation else ""}
-        </div>
-        """
-        components.html(card_html, height=140)
+        # FIX: Native container handles light/dark themes perfectly and expands with zero clipping or blinking
+        with st.container(border=True):
+            st.markdown(f"### {prompt_text}")
+            if st.session_state.show_translation:
+                # Uses a native subheader text block for high contrast on phone screens
+                st.markdown(f" :red[*{translation_text}*]")
 
     # ----------------------------------------------------
     # 5. INLINE AUDIO & TRANSLATE ROW CONTROL
@@ -314,18 +279,15 @@ if not df_all.empty:
     nav_left_col, nav_right_col = st.columns(2)
 
     with nav_left_col:
-        # Configuration 1: Absolute start index boundary check
         if is_on_absolute_first_card_of_topic and st.session_state.current_scenario_idx == 0:
             st.button("Previous Topic", disabled=True, use_container_width=True)
             
-        # Configuration 2: First card of a topic -> Steps backward to preceding topic group
         elif is_on_absolute_first_card_of_topic:
             if st.button("Previous Topic", use_container_width=True):
                 st.session_state.current_scenario_idx -= 1
                 prev_scenario = unique_scenarios[st.session_state.current_scenario_idx]
                 df_prev_scen = df_all[df_all['scenario_name'] == prev_scenario]
                 
-                # Instantly align index views to pointing track ends
                 prev_available_convs = sorted(df_prev_scen['conversation_id'].unique().tolist())
                 st.session_state.current_conversation_id = prev_available_convs[-1]
                 
@@ -334,7 +296,6 @@ if not df_all.empty:
                 st.session_state.show_translation = False
                 st.rerun()
                 
-        # Configuration 3: Mid-tier sequence flow step back
         else:
             if st.button("Previous", use_container_width=True):
                 if is_first_line_of_conv:
