@@ -1,36 +1,44 @@
 import streamlit as st
 import pandas as pd
-import re
+import toml
+import os
+import urllib.parse
 
 # ----------------------------------------------------
-# 1. CONFIGURATION & APP SETUP
+# 1. CONFIGURATION & TOML SETUP
 # ----------------------------------------------------
 st.set_page_config(page_title="Scenario Walkthrough", page_icon="🗣️", layout="centered")
 
-# Dictionary of your Google Sheets. Add or modify sources here.
-# Ensure the sheets are set to "Anyone with the link can view".
-SHEETS_CONFIG = {
-    "🇮🇹 Italian Travel Essentials": "https://docs.google.com/spreadsheets/d/1Xxxxxxx_ExampleLink1/edit?usp=sharing",
-    "☕ Cafe & Restaurant Special Pack": "https://docs.google.com/spreadsheets/d/1Yyyyyyy_ExampleLink2/edit?usp=sharing"
-}
+CONFIG_FILE = "conversations.toml"
+
+if os.path.exists(CONFIG_FILE):
+    try:
+        config_data = toml.load(CONFIG_FILE)
+        CONVERSATIONS_LIST = config_data.get("conversations", [])
+    except Exception as e:
+        st.error(f"Error reading {CONFIG_FILE}: {e}")
+        CONVERSATIONS_LIST = []
+else:
+    st.error(f"Configuration file '{CONFIG_FILE}' not found. Please create it in the root directory.")
+    CONVERSATIONS_LIST = []
 
 # ----------------------------------------------------
 # 2. HELPER FUNCTIONS
 # ----------------------------------------------------
-def Google_sheet_to_csv_url(url):
-    """Converts a standard Google Sheets sharing URL into a direct CSV export URL."""
-    match = re.search(r"docs\.google\.com/spreadsheets/d/([^/]+)", url)
-    if match:
-        spreadsheet_id = match.group(1)
-        return f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/export?format=csv"
-    return url
+def build_google_sheet_csv_url(spreadsheet_id, worksheet_name):
+    """Constructs a direct CSV export URL using the spreadsheet ID and worksheet tab name."""
+    base_export_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/export?format=csv"
+    # URL-encode the specific worksheet tab name to safely handle spaces/emojis
+    encoded_worksheet = urllib.parse.quote(worksheet_name)
+    return f"{base_export_url}&sheet={encoded_worksheet}"
 
-@st.cache_data(ttl=300)  # Caches sheet data for 5 minutes
-def load_scenario_data(sheet_url):
-    """Fetches data from Google Sheets, cleans column spaces, and sorts by sequence."""
+@st.cache_data(ttl=300)  # Caches data for 5 minutes
+def load_scenario_data(spreadsheet_id, worksheet_name):
+    """Fetches data from a specific targeted Google Sheet tab and sorts it by sequence."""
     try:
-        csv_url = google_sheet_to_csv_url(sheet_url)
+        csv_url = build_google_sheet_csv_url(spreadsheet_id, worksheet_name)
         df = pd.read_csv(csv_url)
+        
         # Standardize column naming rules
         df.columns = [c.strip().replace(' ', '_').lower() for c in df.columns]
         
@@ -38,13 +46,13 @@ def load_scenario_data(sheet_url):
         required = ['scenario_name', 'sequence', 'speaker_tag', 'is_user', 'italian', 'english']
         missing = [col for col in required if col not in df.columns]
         if missing:
-            st.error(f"Missing columns in Google Sheet: {missing}")
+            st.error(f"Missing required columns in tab '{worksheet_name}': {missing}")
             return pd.DataFrame()
             
         df['sequence'] = pd.to_numeric(df['sequence']).astype(int)
         return df.sort_values(by=['scenario_name', 'sequence']).reset_index(drop=True)
     except Exception as e:
-        st.error(f"Error loading data: {e}")
+        st.error(f"Error loading worksheet '{worksheet_name}': {e}")
         return pd.DataFrame()
 
 # ----------------------------------------------------
@@ -52,9 +60,20 @@ def load_scenario_data(sheet_url):
 # ----------------------------------------------------
 st.sidebar.title("🎛️ App Settings")
 
-selected_sheet_name = st.sidebar.selectbox("Select Scenario Pack", list(SHEETS_CONFIG.keys()))
-raw_url = SHEETS_CONFIG[selected_sheet_name]
-df_all = load_scenario_data(raw_url)
+if CONVERSATIONS_LIST:
+    # Build a selection mapping using the display_name from TOML
+    display_names = [item["display_name"] for item in CONVERSATIONS_LIST]
+    selected_display = st.sidebar.selectbox("Select Scenario Pack", display_names)
+    
+    # Extract the matching configuration dictionary block
+    selected_config = next(item for item in CONVERSATIONS_LIST if item["display_name"] == selected_display)
+    
+    # Load from the targeted sheet using spreadsheet_id and worksheet_name
+    df_all = load_scenario_data(selected_config["spreadsheet_id"], selected_config["worksheet_name"])
+    selected_id = selected_config["id"]
+else:
+    df_all = pd.DataFrame()
+    selected_id = None
 
 # Language Toggle Mode
 display_mode = st.sidebar.radio(
@@ -63,17 +82,17 @@ display_mode = st.sidebar.radio(
 )
 target_first = "Italian" in display_mode
 
-if not df_all.empty():
+if not df_all.empty:
     scenarios = df_all['scenario_name'].unique().tolist()
     
-    # Initialize session tracking states
-    if 'current_scenario_idx' not in st.session_state or st.session_state.get('last_sheet') != selected_sheet_name:
+    # Initialize or reset session tracking states when shifting packs
+    if 'current_scenario_idx' not in st.session_state or st.session_state.get('last_deck_id') != selected_id:
         st.session_state.current_scenario_idx = 0
         st.session_state.current_line_sequence = 1
         st.session_state.show_translation = False
-        st.session_state.last_sheet = selected_sheet_name
+        st.session_state.last_deck_id = selected_id
 
-    # Filter data down to the actively selected scenario
+    # Filter data down to the actively selected scenario block
     current_scenario = scenarios[st.session_state.current_scenario_idx]
     df_scenario = df_all[df_all['scenario_name'] == current_scenario].sort_values('sequence').reset_index(drop=True)
     
@@ -81,7 +100,6 @@ if not df_all.empty():
     current_row = df_scenario[df_scenario['sequence'] == st.session_state.current_line_sequence]
     
     if current_row.empty and total_lines > 0:
-        # Fallback safeguard if sequence markers get desynced
         st.session_state.current_line_sequence = int(df_scenario['sequence'].min())
         current_row = df_scenario[df_scenario['sequence'] == st.session_state.current_line_sequence]
 
@@ -89,14 +107,13 @@ if not df_all.empty():
     # 4. MAIN INTERFACE RENDERING
     # ----------------------------------------------------
     st.title("🗣️ Scenario Walkthrough")
-    st.caption(f"Currently practicing Pack: **{selected_sheet_name}**")
+    st.caption(f"Currently practicing Pack ID: `{selected_id}`")
     
     # Scenario Progress Header Card
     with st.container(border=True):
         col_scen_left, col_scen_right = st.columns([3, 1])
         with col_scen_left:
             st.subheader(f"🎬 Scenario: {current_scenario}")
-            # Display metadata if available in columns
             if 'setting' in df_scenario.columns:
                 st.caption(f"📍 **Setting:** {df_scenario['setting'].iloc[0]}")
         with col_scen_right:
@@ -110,16 +127,14 @@ if not df_all.empty():
         speaker = row['speaker_tag']
         is_user = str(row['is_user']).upper() == 'TRUE'
         
-        # Establish language roles based on configuration selection
         prompt_text = row['italian'] if target_first else row['english']
         translation_text = row['english'] if target_first else row['italian']
         
-        # Clean alignment cues depending on whether it is a User prompt or an NPC response
+        # Establish ergonomic layout positions based on role
         alignment = "right" if is_user else "left"
         bg_color = "#e8f0fe" if is_user else "#f1f3f4"
         text_color = "#1a73e8" if is_user else "#3c4043"
         
-        # Structural HTML injection for Chat-Bubble Experience
         st.markdown(
             f"""
             <div style="text-align: {alignment}; margin-bottom: 20px;">
@@ -142,7 +157,6 @@ if not df_all.empty():
             if st.button("👁️ Show Answer / Translation", use_container_width=True):
                 st.session_state.show_translation = not st.session_state.show_translation
         
-        # Display translation when triggered
         if st.session_state.show_translation:
             st.markdown(
                 f"""
@@ -160,7 +174,6 @@ if not df_all.empty():
     # ----------------------------------------------------
     # 5. NAVIGATION CONTROLS & LOGIC BOUNDARIES
     # ----------------------------------------------------
-    # Line sequence coordinates within the active scenario block
     min_seq = int(df_scenario['sequence'].min())
     max_seq = int(df_scenario['sequence'].max())
     
@@ -170,9 +183,7 @@ if not df_all.empty():
     nav_col1, nav_col2, nav_col3 = st.columns([1, 1, 1])
 
     with nav_col1:
-        # Step back sequentially within current scenario block
         if st.button("⬅️ Previous Line", disabled=is_first_line, use_container_width=True):
-            # Locate previous sequential element tracking backward cleanly
             prev_seqs = df_scenario[df_scenario['sequence'] < st.session_state.current_line_sequence]['sequence']
             if not prev_seqs.empty:
                 st.session_state.current_line_sequence = int(prev_seqs.max())
@@ -180,7 +191,6 @@ if not df_all.empty():
                 st.rerun()
 
     with nav_col2:
-        # Step forward sequentially within current scenario block
         if st.button("Next Line ➡️", disabled=is_last_line, use_container_width=True):
             next_seqs = df_scenario[df_scenario['sequence'] > st.session_state.current_line_sequence]['sequence']
             if not next_seqs.empty:
@@ -189,7 +199,6 @@ if not df_all.empty():
                 st.rerun()
 
     with nav_col3:
-        # Scenario completion step: advances to the next available block
         if is_last_line:
             if st.session_state.current_scenario_idx < len(scenarios) - 1:
                 if st.button("🎉 Next Scenario", type="primary", use_container_width=True):
@@ -206,8 +215,7 @@ if not df_all.empty():
                     st.session_state.show_translation = False
                     st.rerun()
         else:
-            # Enforce execution barrier: users must finish tracking the entire dialog before proceeding
             st.button("Scenario Locked 🔒", disabled=True, use_container_width=True, 
                       help="Step through to the end of the current conversation line-by-line to unlock the next scenario block.")
 else:
-    st.info("Please verify your data file setup configuration properties to safely initialize your workbook instances.")
+    st.info("Verify your setup configurations inside conversations.toml to load your data sets.")
