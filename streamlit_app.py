@@ -101,7 +101,7 @@ if not df_all.empty:
         current_row = df_scenario[df_scenario['sequence'] == st.session_state.current_line_sequence]
 
     # ----------------------------------------------------
-    # 4. MAIN INTERFACE RENDERING (CLEAN HEADER / NO SUBHEAD)
+    # 4. MAIN INTERFACE RENDERING
     # ----------------------------------------------------
     # Just the scenario name, no labels or extra header tags
     st.title(current_scenario)
@@ -115,43 +115,26 @@ if not df_all.empty:
     if not current_row.empty:
         row = current_row.iloc[0]
         
-        speaker_name = str(row['speaker_tag']).replace('"', '&quot;').replace("'", "&#39;")
+        speaker_name = str(row['speaker_tag'])
         is_user = bool(row['is_user'])
         
         user_suffix = " (You)" if is_user else ""
-        full_speaker_label = f"{speaker_name}{user_suffix}"
+        full_speaker_label = f"**{speaker_name}{user_suffix}**"
         
         prompt_text = str(row['italian']) if target_first else str(row['english'])
         translation_text = str(row['english']) if target_first else str(row['italian'])
         
-        # Clean background bubble colors based on chat role alignment
-        bg_color = "#e8f0fe" if is_user else "#f1f3f4"
-        text_color = "#1a73e8" if is_user else "#3c4043"
-        border_radius = "18px 18px 4px 18px" if is_user else "18px 18px 18px 4px"
+        # Display the speaker label natively using standard subheaders
+        st.markdown(full_speaker_label)
         
-        # Inject standard style structural wrappers safely to handle fluid viewport heights
-        st.html(f"""
-            <div style="margin-top: 15px; margin-bottom: 5px; font-family: -apple-system, sans-serif;">
-                <span style="font-size: 0.85em; font-weight: 600; color: #5f6368; display: block; margin-bottom: 3px;">
-                    {full_speaker_label}
-                </span>
-            </div>
-        """)
-        
-        # Combined Box Content Model: Keeps prompt and answer in the exact same footprint
+        # Combined Box Content Model using native Streamlit code formatting blocks
         with st.container(border=True):
-            # Monospace text stack guarantees differentiation between letters like 'l' and 'I'
-            st.markdown(
-                f"##### <span style='font-family: \"Consolas\", \"Monaco\", monospace; color: {text_color}; font-weight: 500;'>{prompt_text}</span>", 
-                unsafe_html=True
-            )
+            # Uses markdown code blocking to enforce clear monospace fonts (safeguarding 'l' vs 'I')
+            st.code(prompt_text, language="text", wrap_lines=True)
             
             if st.session_state.show_translation:
-                st.html("<div style='border-top: 1px dashed #ccc; margin: 12px 0;'></div>")
-                st.markdown(
-                    f"**Translation:**\n<span style='font-family: \"Consolas\", \"Monaco\", monospace; font-size: 1.15em; color: #555; font-style: italic;'>{translation_text}</span>", 
-                    unsafe_html=True
-                )
+                st.write("---")
+                st.markdown(f"**Translation:**\n\n*{translation_text}*")
 
     # ----------------------------------------------------
     # 5. NAVIGATION CONTROLS & MOBILITY ERGONOMICS
