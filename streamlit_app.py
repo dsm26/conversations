@@ -9,7 +9,7 @@ import urllib.parse
 # ----------------------------------------------------
 st.set_page_config(page_title="Scenario Walkthrough", page_icon="🗣️", layout="centered")
 
-# 📱 HARDENED CSS GRID FOR SIDE-BY-SIDE MOBILE BUTTONS WITHOUT SCROLLBARS
+# 📱 HARDENED CSS GRID FOR BUTTON ALIGNMENT WITHOUT SCROLLBARS
 st.html("""
     <style>
         /* Force the column container to act as a 50/50 grid layout */
@@ -183,7 +183,7 @@ if not df_all.empty:
                 st.markdown(f"*{translation_text}*")
 
     # ----------------------------------------------------
-    # 5. NAVIGATION CONTROLS & MOBILITY ERGONOMICS
+    # 5. NAVIGATION CONTROLS & ERGONOMICS
     # ----------------------------------------------------
     min_seq = int(df_current_conv['sequence'].min())
     max_seq = int(df_current_conv['sequence'].max())
@@ -193,27 +193,29 @@ if not df_all.empty:
 
     st.write("") 
     
-    if st.button("👁️ Show Answer / Translation", use_container_width=True):
-        st.session_state.show_translation = not st.session_state.show_translation
-        st.rerun()
+    # "Previous" sits on its own row immediately above the control dock
+    if st.button("⬅️ Previous", disabled=is_first_line, use_container_width=True):
+        prev_seqs = df_current_conv[df_current_conv['sequence'] < st.session_state.current_line_sequence]['sequence']
+        if not prev_seqs.empty:
+            st.session_state.current_line_sequence = int(prev_seqs.max())
+            st.session_state.show_translation = False
+            st.rerun()
 
-    # Layout Row: Controlled dynamically by grid styles to lock columns at precisely 50% screen width
-    nav_col_left, nav_col_right = st.columns(2)
+    # Control Dock: "Translate" and "Next" aligned perfectly side-by-side using CSS grid parameters
+    action_col_left, action_col_right = st.columns(2)
 
-    with nav_col_left:
-        if st.button("⬅️ Previous", disabled=is_first_line, use_container_width=True):
-            prev_seqs = df_current_conv[df_current_conv['sequence'] < st.session_state.current_line_sequence]['sequence']
-            if not prev_seqs.empty:
-                st.session_state.current_line_sequence = int(prev_seqs.max())
-                st.session_state.show_translation = False
-                st.rerun()
+    with action_col_left:
+        if st.button("Translate", use_container_width=True):
+            st.session_state.show_translation = not st.session_state.show_translation
+            st.rerun()
 
-    with nav_col_right:
+    with action_col_right:
         if is_last_line:
             current_conv_idx = available_conv_ids.index(st.session_state.current_conversation_id)
             
             if current_conv_idx < len(available_conv_ids) - 1:
-                if st.button("Next Conv ➡️", type="primary", use_container_width=True):
+                # Changes text to "Next conversation" cleanly with no emoji arrows
+                if st.button("Next conversation", type="primary", use_container_width=True):
                     st.session_state.current_conversation_id = available_conv_ids[current_conv_idx + 1]
                     st.session_state.current_line_sequence = 1
                     st.session_state.show_translation = False
@@ -235,7 +237,8 @@ if not df_all.empty:
                     st.session_state.show_translation = False
                     st.rerun()
         else:
-            if st.button("Next Line ➡️", use_container_width=True):
+            # Simplified to just "Next"
+            if st.button("Next", use_container_width=True):
                 next_seqs = df_current_conv[df_current_conv['sequence'] > st.session_state.current_line_sequence]['sequence']
                 if not next_seqs.empty:
                     st.session_state.current_line_sequence = int(next_seqs.min())
