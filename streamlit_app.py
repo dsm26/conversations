@@ -3,64 +3,48 @@ import pandas as pd
 import toml
 import os
 import urllib.parse
+import streamlit.components.v1 as components
 
-# ----------------------------------------------------
-# 1. CONFIGURATION & TOML SETUP
-# ----------------------------------------------------
+# Force structural layout optimization for mobile viewports
 st.set_page_config(page_title="Scenario Walkthrough", page_icon="🗣️", layout="centered")
 
-# 📱 BULLETPROOF NATIVE CSS GRID LAYOUT ENGINE (ZERO SCROLLBARS)
-st.html("""
+# ==============================================================================
+# INDESTRUCTIBLE MOBILE GRID & TARGETED INTERFACE BLOCKS
+# ==============================================================================
+st.markdown(
+    """
     <style>
-        /* Target the single button container wrapper */
-        div.custom-button-grid > div [data-testid="stVerticalBlockBorderWrapper"] > div > div {
-            display: grid !important;
-            grid-template-columns: 1fr 1fr !important; /* 2 perfectly equal columns */
-            grid-template-rows: 42px 42px !important;    /* 2 rows with exact rigid heights */
-            gap: 12px 10px !important;                  /* Spacing: Row gap, Column gap */
-            width: 100% !important;
-            max-width: 100% !important;
-            overflow: hidden !important;
-        }
+    /* Target all variations of Streamlit horizontal column layouts */
+    div[data-testid="stHorizontalBlock"], 
+    .stHorizontalBlock, 
+    div[data-fieldname="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important; /* Stop vertical stacking on phone screens */
+        width: 100% !important;
+        gap: 10px !important;
+        align-items: center !important;
+    }
+    
+    /* Force column items to split the row space precisely split without blowing out */
+    div[data-testid="stHorizontalBlock"] > div,
+    .stHorizontalBlock > div {
+        flex: 1 1 0% !important;
+        min-width: 0 !important;
+        width: 100% !important;
+    }
 
-        /* 🗺️ PRECISE INTERFACE SLOT COORDINATE MAP
-           We bypass column components entirely and position the native button elements directly:
-           - Button 1 (Translate)      -> Row 1, Column 2 (Top Right)
-           - Button 2 (⬅️ Previous)    -> Row 2, Column 1 (Bottom Left)
-           - Button 3 (Next / Action)  -> Row 2, Column 2 (Bottom Right)
-           (Row 1, Column 1 remains cleanly unoccupied)
-        */
-        div.custom-button-grid div.stButton:nth-of-type(1) {
-            grid-row: 1 !important;
-            grid-column: 2 !important;
-        }
-        div.custom-button-grid div.stButton:nth-of-type(2) {
-            grid-row: 2 !important;
-            grid-column: 1 !important;
-        }
-        div.custom-button-grid div.stButton:nth-of-type(3) {
-            grid-row: 2 !important;
-            grid-column: 2 !important;
-        }
-
-        /* Strip default margins and force full padding containment */
-        div.custom-button-grid div.stButton {
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-
-        /* Lock down button styling attributes inside browser viewport windows */
-        div.custom-button-grid div.stButton > button {
-            white-space: nowrap !important;
-            word-break: keep-all !important;
-            width: 100% !important;
-            height: 42px !important;
-            padding: 0px 8px !important;
-            margin: 0 !important;
-        }
+    /* Keep button text content strictly bound from accidental wrapping */
+    .stButton > button {
+        white-space: nowrap !important;
+        word-break: keep-all !important;
+        width: 100% !important;
+        height: 42px !important;
+    }
     </style>
-""")
+    """,
+    unsafe_allow_html=True
+)
 
 CONFIG_FILE = "conversations.toml"
 
@@ -76,7 +60,7 @@ else:
     CONVERSATIONS_LIST = []
 
 # ----------------------------------------------------
-# 2. HELPER FUNCTIONS
+# 2. DATA INGESTION (WITH CACHE OVERRIDE)
 # ----------------------------------------------------
 def build_google_sheet_csv_url(spreadsheet_id, worksheet_name):
     """Constructs a direct CSV export URL using the Google Visualization API."""
@@ -128,6 +112,11 @@ else:
     df_all = pd.DataFrame()
     selected_id = None
 
+# Sidebar Sheet Reload button
+if st.sidebar.button("Reload GoogleSheet"):
+    st.cache_data.clear()
+    st.rerun()
+
 display_mode = st.sidebar.radio(
     "Prompt Language:",
     ["Italian First", "English first"]
@@ -139,6 +128,7 @@ if not df_all.empty:
     unique_scenarios = sorted(list(scenario_counts.keys()))
     sidebar_labels = [f"{name} ({scenario_counts[name]})" for name in unique_scenarios]
     
+    # Core Global State Initialization Block
     if 'current_scenario_idx' not in st.session_state or st.session_state.get('last_deck_id') != selected_id:
         st.session_state.current_scenario_idx = 0
         st.session_state.current_conversation_id = None
@@ -147,13 +137,16 @@ if not df_all.empty:
         st.session_state.last_deck_id = selected_id
 
     st.sidebar.write("---")
+    
+    # "Jump to scenario" selector widget setup
     selected_sidebar_label = st.sidebar.selectbox(
-        "Available Scenarios:",
+        "Jump to scenario:",
         sidebar_labels,
         index=st.session_state.current_scenario_idx,
         key="scenario_selector_widget"
     )
     
+    # Detect deliberate user jump modification event
     new_idx = sidebar_labels.index(selected_sidebar_label)
     if new_idx != st.session_state.current_scenario_idx:
         st.session_state.current_scenario_idx = new_idx
@@ -161,6 +154,7 @@ if not df_all.empty:
         st.session_state.current_line_sequence = 1
         st.session_state.show_translation = False
 
+    # Extract boundaries for currently selected workspace
     current_scenario = unique_scenarios[st.session_state.current_scenario_idx]
     df_scenario = df_all[df_all['scenario_name'] == current_scenario].sort_values(['conversation_id', 'sequence']).reset_index(drop=True)
     
@@ -168,8 +162,7 @@ if not df_all.empty:
     if st.session_state.current_conversation_id not in available_conv_ids:
         st.session_state.current_conversation_id = available_conv_ids[0]
 
-    df_current_conv = df_scenario[df_scenario['scenario_name'] == current_scenario]
-    df_current_conv = df_current_conv[df_current_conv['conversation_id'] == st.session_state.current_conversation_id].sort_values('sequence').reset_index(drop=True)
+    df_current_conv = df_scenario[df_scenario['conversation_id'] == st.session_state.current_conversation_id].sort_values('sequence').reset_index(drop=True)
     
     total_lines = len(df_current_conv)
     current_row = df_current_conv[df_current_conv['sequence'] == st.session_state.current_line_sequence]
@@ -177,6 +170,16 @@ if not df_all.empty:
     if current_row.empty and total_lines > 0:
         st.session_state.current_line_sequence = int(df_current_conv['sequence'].min())
         current_row = df_current_conv[df_current_conv['sequence'] == st.session_state.current_line_sequence]
+
+    # Calculate global sequence metrics to track first line/first topic bounds
+    min_seq = int(df_current_conv['sequence'].min())
+    max_seq = int(df_current_conv['sequence'].max())
+    
+    is_first_line_of_conv = (st.session_state.current_line_sequence == min_seq)
+    is_first_conv_of_topic = (available_conv_ids.index(st.session_state.current_conversation_id) == 0)
+    is_last_line_of_conv = (st.session_state.current_line_sequence == max_seq)
+    
+    is_on_absolute_first_card_of_topic = is_first_line_of_conv and is_first_conv_of_topic
 
     # ----------------------------------------------------
     # 4. MAIN INTERFACE RENDERING
@@ -189,11 +192,12 @@ if not df_all.empty:
         </div>
     """)
     
+    # Combined Tracking Line Metric
     current_conv_num = available_conv_ids.index(st.session_state.current_conversation_id) + 1
     total_convs_for_scenario = len(available_conv_ids)
-    st.caption(f"Practicing conversation {current_conv_num} of {total_convs_for_scenario}")
+    st.caption(f"Conversation {current_conv_num} of {total_convs_for_scenario} | Line {st.session_state.current_line_sequence} of {total_lines}")
 
-    # Dialogue Display Window
+    # Dialogue Display Window Matrix
     if not current_row.empty:
         row = current_row.iloc[0]
         
@@ -208,42 +212,122 @@ if not df_all.empty:
         
         st.markdown(full_speaker_label)
         
-        with st.container(border=True):
-            st.code(prompt_text, language="text", wrap_lines=True)
-            
-            if st.session_state.show_translation:
-                st.markdown(f"*{translation_text}*")
+        # Statically scaled layout card matching exact look, feel, and crisp 24px font size
+        card_html = f"""
+        <style>
+            .convo-card-canvas {{
+                background-color: #1E1E1E; 
+                border: 2px solid #36393F;
+                border-radius: 12px;
+                padding: 20px;
+                text-align: left;
+                min-height: 100px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                box-sizing: border-box;
+            }}
+            .convo-main-text {{ 
+                font-size: 24px; 
+                font-weight: normal; 
+                color: #FFFFFF; 
+                line-height: 1.3; 
+                font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            }}
+            .convo-trans-text {{
+                color: #FF4B4B; 
+                font-size: 20px; 
+                margin-top: 12px; 
+                font-style: italic;
+                font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            }}
+            @media (prefers-color-scheme: light) {{
+                .convo-card-canvas {{ background-color: #F0F2F6; border-color: #E0E2E6; }}
+                .convo-main-text {{ color: #111111; }}
+            }}
+        </style>
+        <div class="convo-card-canvas">
+            <div class="convo-main-text">{prompt_text}</div>
+            {"<div class='convo-trans-text'>" + translation_text + "</div>" if st.session_state.show_translation else ""}
+        </div>
+        """
+        components.html(card_html, height=140)
 
     # ----------------------------------------------------
-    # 5. FIXED CONTROLS ENGINE (SINGLE FLAT CONTAINER GRID)
+    # 5. INLINE AUDIO & TRANSLATE ROW CONTROL
     # ----------------------------------------------------
-    min_seq = int(df_current_conv['sequence'].min())
-    max_seq = int(df_current_conv['sequence'].max())
+    safe_speech_text = str(row['italian']).replace("'", "\\'") if not current_row.empty else ""
     
-    is_first_line = (st.session_state.current_line_sequence == min_seq)
-    is_last_line = (st.session_state.current_line_sequence == max_seq)
-
-    st.write("") 
+    top_actions_left, top_actions_right = st.columns(2)
     
-    # By placing all buttons inside one flat container block with a custom CSS anchor class,
-    # we can manipulate the position layout completely independently of Streamlit primitives.
-    with st.container(key="custom-button-grid"):
+    with top_actions_left:
+        tts_html = f"""
+        <div style="display: flex; justify-content: flex-start; align-items: center; gap: 25px; height: 44px; margin-top: 2px;">
+            <button onclick="speakText(0.55)" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 2px; touch-action: manipulation;" title="Slow Speed">🐢</button>
+            <button onclick="speakText(0.85)" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 2px; touch-action: manipulation;" title="Normal Speed">🔊</button>
+        </div>
+        <script>
+        function speakText(playbackRate) {{
+            if ('speechSynthesis' in window) {{
+                window.speechSynthesis.cancel();
+                var utterance = new SpeechSynthesisUtterance('{safe_speech_text}');
+                utterance.lang = 'it-IT';
+                utterance.rate = playbackRate;
+                window.speechSynthesis.speak(utterance);
+            }}
+        }}
+        </script>
+        """
+        components.html(tts_html, height=44)
         
-        # Element index 1 -> Routed via CSS to Row 1, Column 2 [Translate]
+    with top_actions_right:
         if st.button("Translate", use_container_width=True):
             st.session_state.show_translation = not st.session_state.show_translation
             st.rerun()
 
-        # Element index 2 -> Routed via CSS to Row 2, Column 1 [⬅️ Previous]
-        if st.button("⬅️ Previous", disabled=is_first_line, use_container_width=True):
-            prev_seqs = df_current_conv[df_current_conv['sequence'] < st.session_state.current_line_sequence]['sequence']
-            if not prev_seqs.empty:
-                st.session_state.current_line_sequence = int(prev_seqs.max())
+    # ----------------------------------------------------
+    # 6. DYNAMIC BACK / FORWARD NAVIGATION MATRIX
+    # ----------------------------------------------------
+    st.write("") 
+    nav_left_col, nav_right_col = st.columns(2)
+
+    with nav_left_col:
+        # Configuration 1: Absolute start index boundary check
+        if is_on_absolute_first_card_of_topic and st.session_state.current_scenario_idx == 0:
+            st.button("Previous Topic", disabled=True, use_container_width=True)
+            
+        # Configuration 2: First card of a topic -> Steps backward to preceding topic group
+        elif is_on_absolute_first_card_of_topic:
+            if st.button("Previous Topic", use_container_width=True):
+                st.session_state.current_scenario_idx -= 1
+                prev_scenario = unique_scenarios[st.session_state.current_scenario_idx]
+                df_prev_scen = df_all[df_all['scenario_name'] == prev_scenario]
+                
+                # Instantly align index views to pointing track ends
+                prev_available_convs = sorted(df_prev_scen['conversation_id'].unique().tolist())
+                st.session_state.current_conversation_id = prev_available_convs[-1]
+                
+                df_prev_conv = df_prev_scen[df_prev_scen['conversation_id'] == st.session_state.current_conversation_id]
+                st.session_state.current_line_sequence = int(df_prev_conv['sequence'].max())
+                st.session_state.show_translation = False
+                st.rerun()
+                
+        # Configuration 3: Mid-tier sequence flow step back
+        else:
+            if st.button("⬅️ Previous", use_container_width=True):
+                if is_first_line_of_conv:
+                    current_conv_idx = available_conv_ids.index(st.session_state.current_conversation_id)
+                    st.session_state.current_conversation_id = available_conv_ids[current_conv_idx - 1]
+                    df_back_conv = df_scenario[df_scenario['conversation_id'] == st.session_state.current_conversation_id]
+                    st.session_state.current_line_sequence = int(df_back_conv['sequence'].max())
+                else:
+                    prev_seqs = df_current_conv[df_current_conv['sequence'] < st.session_state.current_line_sequence]['sequence']
+                    st.session_state.current_line_sequence = int(prev_seqs.max())
                 st.session_state.show_translation = False
                 st.rerun()
 
-        # Element index 3 -> Routed via CSS to Row 2, Column 2 [Next Stack]
-        if is_last_line:
+    with nav_right_col:
+        if is_last_line_of_conv:
             current_conv_idx = available_conv_ids.index(st.session_state.current_conversation_id)
             
             if current_conv_idx < len(available_conv_ids) - 1:
@@ -253,7 +337,8 @@ if not df_all.empty:
                     st.session_state.show_translation = False
                     st.rerun()
             elif st.session_state.current_scenario_idx < len(unique_scenarios) - 1:
-                if st.button("Next Topic ➡️", type="primary", use_container_width=True):
+                # Icon removed, pure text trigger target loop
+                if st.button("Next Topic", type="primary", use_container_width=True):
                     st.session_state.current_scenario_idx += 1
                     st.session_state.current_conversation_id = None
                     st.session_state.current_line_sequence = 1
@@ -262,7 +347,7 @@ if not df_all.empty:
             else:
                 st.balloons()
                 st.success("🏆 Completed all setups!")
-                if st.button("🔄 Restart", use_container_width=True):
+                if st.button("Restart", use_container_width=True):
                     st.session_state.current_scenario_idx = 0
                     st.session_state.current_conversation_id = None
                     st.session_state.current_line_sequence = 1
