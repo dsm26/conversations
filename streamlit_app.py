@@ -6,6 +6,11 @@ import time
 import urllib.parse
 import streamlit.components.v1 as components
 
+# Global Fallback Constants if configuration parameters are missing
+DEFAULT_TARGET_CODE = "it-IT"
+DEFAULT_TARGET_COL = "italian"
+DEFAULT_NATIVE_COL = "english"
+
 # Force structural layout optimization for mobile viewports
 st.set_page_config(page_title="Scenario Walkthrough", page_icon="💡", layout="centered")
 
@@ -15,27 +20,22 @@ st.set_page_config(page_title="Scenario Walkthrough", page_icon="💡", layout="
 st.markdown(
     """
     <style>
-    /* Target all variations of Streamlit horizontal column layouts */
     div[data-testid="stHorizontalBlock"], 
     .stHorizontalBlock, 
     div[data-fieldname="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
-        flex-wrap: nowrap !important; /* Stop vertical stacking on phone screens */
+        flex-wrap: nowrap !important;
         width: 100% !important;
         gap: 10px !important;
         align-items: center !important;
     }
-    
-    /* Force column items to split the row space precisely split without blowing out */
     div[data-testid="stHorizontalBlock"] > div,
     .stHorizontalBlock > div {
         flex: 1 1 0% !important;
         min-width: 0 !important;
         width: 100% !important;
     }
-
-    /* Keep button text content strictly bound from accidental wrapping */
     .stButton > button {
         white-space: nowrap !important;
         word-break: keep-all !important;
@@ -61,7 +61,7 @@ else:
     CONVERSATIONS_LIST = []
 
 # ----------------------------------------------------
-# 2. DATA INGESTION (WITH CACHE OVERRIDE & CLOCK)
+# 2. DATA INGESTION (DYNAMIC EXTRACTION ENGINE)
 # ----------------------------------------------------
 def build_google_sheet_csv_url(spreadsheet_id, worksheet_name):
     """Constructs a direct CSV export URL using the Google Visualization API."""
@@ -70,8 +70,8 @@ def build_google_sheet_csv_url(spreadsheet_id, worksheet_name):
     return f"{base_url}?tqx=out:csv&sheet={encoded_worksheet}"
 
 @st.cache_data(ttl=60)
-def load_scenario_data(spreadsheet_id, worksheet_name):
-    """Fetches, sanitizes, and types Google Sheet data blocks safely, returning elapsed duration."""
+def load_scenario_data(spreadsheet_id, worksheet_name, target_col, native_col):
+    """Fetches, sanitizes, and verifies Google Sheet configurations agnostic of language types."""
     start_time = time.perf_counter()
     try:
         csv_url = build_google_sheet_csv_url(spreadsheet_id, worksheet_name)
@@ -79,18 +79,19 @@ def load_scenario_data(spreadsheet_id, worksheet_name):
         
         df.columns = [c.strip().replace(' ', '_').lower() for c in df.columns]
         
-        required = ['scenario_name', 'conversation_id', 'sequence', 'speaker_tag', 'is_user', 'italian', 'english']
+        # Verify base alignment keys
+        required = ['scenario_name', 'conversation_id', 'sequence', 'speaker_tag', 'is_user', target_col, native_col]
         missing = [col for col in required if col not in df.columns]
         if missing:
-            st.error(f"⚠️ **Column Alignment Error in Tab '{worksheet_name}'**")
+            st.error(f"⚠️ **Column Alignment Error! Missing structural columns:** {missing}")
             return pd.DataFrame(), 0.0
             
         df['sequence'] = pd.to_numeric(df['sequence']).fillna(0).astype(int)
         df['conversation_id'] = pd.to_numeric(df['conversation_id']).fillna(1).astype(int)
         df['scenario_name'] = df['scenario_name'].fillna('').astype(str).str.strip()
         df['speaker_tag'] = df['speaker_tag'].fillna('').astype(str).str.strip()
-        df['italian'] = df['italian'].fillna('').astype(str).str.strip()
-        df['english'] = df['english'].fillna('').astype(str).str.strip()
+        df[target_col] = df[target_col].fillna('').astype(str).str.strip()
+        df[native_col] = df[native_col].fillna('').astype(str).str.strip()
         df['is_user'] = df['is_user'].fillna('FALSE').astype(str).str.strip().str.upper() == 'TRUE'
         
         elapsed_time = time.perf_counter() - start_time
@@ -108,13 +109,32 @@ if CONVERSATIONS_LIST:
     display_names = [item["display_name"] for item in CONVERSATIONS_LIST]
     selected_display = st.sidebar.selectbox("Select Scenario Pack", display_names)
     
+    # Extract dynamic item configuration boundaries
     selected_config = next(item for item in CONVERSATIONS_LIST if item["display_name"] == selected_display)
-    df_all, load_duration = load_scenario_data(selected_config["spreadsheet_id"], selected_config["worksheet_name"])
+    
     selected_id = selected_config["id"]
+    target_lang_code = selected_config.get("target_lang_code", DEFAULT_TARGET_CODE)
+    target_column = selected_config.get("target_column", DEFAULT_TARGET_COL).lower()
+    native_column = selected_config.get("native_column", DEFAULT_NATIVE_COL).lower()
+    
+    # Read UI dynamic mode labels
+    primary_label = selected_config.get("primary_mode_label", "Target Language First")
+    secondary_label = selected_config.get("secondary_mode_label", "Native Language First")
+
+    df_all, load_duration = load_scenario_data(
+        selected_config["spreadsheet_id"], 
+        selected_config["worksheet_name"],
+        target_column,
+        native_column
+    )
 else:
     df_all = pd.DataFrame()
     load_duration = 0.0
     selected_id = None
+    target_lang_code = DEFAULT_TARGET_CODE
+    target_column = DEFAULT_TARGET_COL
+    native_column = DEFAULT_NATIVE_COL
+    primary_label, secondary_label = "Target First", "Native First"
 
 # Sidebar Sheet Reload button
 if st.sidebar.button("Reload GoogleSheet"):
@@ -123,9 +143,9 @@ if st.sidebar.button("Reload GoogleSheet"):
 
 display_mode = st.sidebar.radio(
     "Prompt Language:",
-    ["Italian First", "English first"]
+    [primary_label, secondary_label]
 )
-target_first = "Italian" in display_mode
+target_first = display_mode == primary_label
 
 # DYNAMIC SLOW PLAYBACK SPEED SLIDER
 st.sidebar.write("---")
@@ -144,7 +164,6 @@ if not df_all.empty:
     unique_scenarios = sorted(list(scenario_counts.keys()))
     sidebar_labels = [f"{name} ({scenario_counts[name]})" for name in unique_scenarios]
     
-    # Core Global State Initialization Block
     if 'current_scenario_idx' not in st.session_state or st.session_state.get('last_deck_id') != selected_id:
         st.session_state.current_scenario_idx = 0
         st.session_state.current_conversation_id = None
@@ -154,7 +173,6 @@ if not df_all.empty:
 
     st.sidebar.write("---")
     
-    # CALLBACK HANDLING: Updates indices perfectly when using the selectbox manual override
     def handle_scenario_jump():
         if "scenario_selector_widget" in st.session_state:
             chosen_label = st.session_state.scenario_selector_widget
@@ -163,7 +181,6 @@ if not df_all.empty:
             st.session_state.current_line_sequence = 1
             st.session_state.show_translation = False
 
-    # "Jump to scenario" selector widget setup with bound callback routine
     st.sidebar.selectbox(
         "Jump to scenario:",
         sidebar_labels,
@@ -172,12 +189,10 @@ if not df_all.empty:
         on_change=handle_scenario_jump
     )
 
-    # Render data synchronization performance tracking telemetry
     st.sidebar.markdown("---")
     st.sidebar.metric(label="Data Fetch Time", value=f"{load_duration:.4f}s")
     st.sidebar.caption(f"Loaded {len(df_all)} total dialog segments.")
 
-    # Extract boundaries for currently selected workspace
     current_scenario = unique_scenarios[st.session_state.current_scenario_idx]
     df_scenario = df_all[df_all['scenario_name'] == current_scenario].sort_values(['conversation_id', 'sequence']).reset_index(drop=True)
     
@@ -194,7 +209,6 @@ if not df_all.empty:
         st.session_state.current_line_sequence = int(df_current_conv['sequence'].min())
         current_row = df_current_conv[df_current_conv['sequence'] == st.session_state.current_line_sequence]
 
-    # Calculate global sequence metrics to track first line/first topic bounds
     min_seq = int(df_current_conv['sequence'].min())
     max_seq = int(df_current_conv['sequence'].max())
     
@@ -215,12 +229,10 @@ if not df_all.empty:
         </div>
     """)
     
-    # Combined Tracking Line Metric
     current_conv_num = available_conv_ids.index(st.session_state.current_conversation_id) + 1
     total_convs_for_scenario = len(available_conv_ids)
     st.caption(f"Conversation {current_conv_num} of {total_convs_for_scenario} | Line {st.session_state.current_line_sequence} of {total_lines}")
 
-    # Dialogue Display Window Matrix
     if not current_row.empty:
         row = current_row.iloc[0]
         
@@ -230,12 +242,12 @@ if not df_all.empty:
         user_suffix = " (You)" if is_user else ""
         full_speaker_label = f"**{speaker_name}{user_suffix}**"
         
-        prompt_text = str(row['italian']) if target_first else str(row['english'])
-        translation_text = str(row['english']) if target_first else str(row['italian'])
+        # Pull text blocks fluidly based on the toml structural configurations
+        prompt_text = str(row[target_column]) if target_first else str(row[native_column])
+        translation_text = str(row[native_column]) if target_first else str(row[target_column])
         
         st.markdown(full_speaker_label)
         
-        # Native container expands with zero clipping, flashing, or dark/light theme mismatch bugs
         with st.container(border=True):
             st.markdown(f"### {prompt_text}")
             if st.session_state.show_translation:
@@ -244,11 +256,13 @@ if not df_all.empty:
     # ----------------------------------------------------
     # 5. INLINE AUDIO & TRANSLATE ROW CONTROL
     # ----------------------------------------------------
-    safe_speech_text = str(row['italian']).replace("'", "\\'") if not current_row.empty else ""
+    # Text-to-speech always speaks the targeted training column string content
+    safe_speech_text = str(row[target_column]).replace("'", "\\'") if not current_row.empty else ""
     
     top_actions_left, top_actions_right = st.columns(2)
     
     with top_actions_left:
+        # Dynamically map the target_lang_code ('it-IT', 'es-ES', etc.) straight into Web Speech engine
         tts_html = f"""
         <div style="display: flex; justify-content: flex-start; align-items: center; gap: 25px; height: 44px; margin-top: 2px;">
             <button onclick="speakText({slow_playback_rate})" style="background: none; border: none; font-size: 28px; cursor: pointer; padding: 2px; touch-action: manipulation;" title="Slow Speed">🐢</button>
@@ -259,7 +273,7 @@ if not df_all.empty:
             if ('speechSynthesis' in window) {{
                 window.speechSynthesis.cancel();
                 var utterance = new SpeechSynthesisUtterance('{safe_speech_text}');
-                utterance.lang = 'it-IT';
+                utterance.lang = '{target_lang_code}';
                 utterance.rate = playbackRate;
                 window.speechSynthesis.speak(utterance);
             }}
