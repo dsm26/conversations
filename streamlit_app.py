@@ -2,11 +2,12 @@ import streamlit as st
 import pandas as pd
 import toml
 import os
+import time
 import urllib.parse
 import streamlit.components.v1 as components
 
 # Force structural layout optimization for mobile viewports
-st.set_page_config(page_title="Scenario Walkthrough", page_icon="🗣️", layout="centered")
+st.set_page_config(page_title="Scenario Walkthrough", page_icon="💡", layout="centered")
 
 # ==============================================================================
 # INDESTRUCTIBLE MOBILE GRID & TARGETED INTERFACE BLOCKS
@@ -60,7 +61,7 @@ else:
     CONVERSATIONS_LIST = []
 
 # ----------------------------------------------------
-# 2. DATA INGESTION (WITH CACHE OVERRIDE)
+# 2. DATA INGESTION (WITH CACHE OVERRIDE & CLOCK)
 # ----------------------------------------------------
 def build_google_sheet_csv_url(spreadsheet_id, worksheet_name):
     """Constructs a direct CSV export URL using the Google Visualization API."""
@@ -70,7 +71,8 @@ def build_google_sheet_csv_url(spreadsheet_id, worksheet_name):
 
 @st.cache_data(ttl=60)
 def load_scenario_data(spreadsheet_id, worksheet_name):
-    """Fetches, sanitizes, and types Google Sheet data blocks safely."""
+    """Fetches, sanitizes, and types Google Sheet data blocks safely, returning elapsed duration."""
+    start_time = time.perf_counter()
     try:
         csv_url = build_google_sheet_csv_url(spreadsheet_id, worksheet_name)
         df = pd.read_csv(csv_url)
@@ -81,7 +83,7 @@ def load_scenario_data(spreadsheet_id, worksheet_name):
         missing = [col for col in required if col not in df.columns]
         if missing:
             st.error(f"⚠️ **Column Alignment Error in Tab '{worksheet_name}'**")
-            return pd.DataFrame()
+            return pd.DataFrame(), 0.0
             
         df['sequence'] = pd.to_numeric(df['sequence']).fillna(0).astype(int)
         df['conversation_id'] = pd.to_numeric(df['conversation_id']).fillna(1).astype(int)
@@ -91,10 +93,11 @@ def load_scenario_data(spreadsheet_id, worksheet_name):
         df['english'] = df['english'].fillna('').astype(str).str.strip()
         df['is_user'] = df['is_user'].fillna('FALSE').astype(str).str.strip().str.upper() == 'TRUE'
         
-        return df.sort_values(by=['scenario_name', 'conversation_id', 'sequence']).reset_index(drop=True)
+        elapsed_time = time.perf_counter() - start_time
+        return df.sort_values(by=['scenario_name', 'conversation_id', 'sequence']).reset_index(drop=True), elapsed_time
     except Exception as e:
         st.error(f"Error loading worksheet '{worksheet_name}': {e}")
-        return pd.DataFrame()
+        return pd.DataFrame(), 0.0
 
 # ----------------------------------------------------
 # 3. SIDEBAR AND APP STATE INIT
@@ -106,10 +109,11 @@ if CONVERSATIONS_LIST:
     selected_display = st.sidebar.selectbox("Select Scenario Pack", display_names)
     
     selected_config = next(item for item in CONVERSATIONS_LIST if item["display_name"] == selected_display)
-    df_all = load_scenario_data(selected_config["spreadsheet_id"], selected_config["worksheet_name"])
+    df_all, load_duration = load_scenario_data(selected_config["spreadsheet_id"], selected_config["worksheet_name"])
     selected_id = selected_config["id"]
 else:
     df_all = pd.DataFrame()
+    load_duration = 0.0
     selected_id = None
 
 # Sidebar Sheet Reload button
@@ -153,6 +157,11 @@ if not df_all.empty:
         st.session_state.current_conversation_id = None
         st.session_state.current_line_sequence = 1
         st.session_state.show_translation = False
+
+    # Render data synchronization performance tracking telemetry
+    st.sidebar.markdown("---")
+    st.sidebar.metric(label="Data Fetch Time", value=f"{load_duration:.4f}s")
+    st.sidebar.caption(f"Loaded {len(df_all)} total dialog segments.")
 
     # Extract boundaries for currently selected workspace
     current_scenario = unique_scenarios[st.session_state.current_scenario_idx]
@@ -312,9 +321,9 @@ if not df_all.empty:
                 st.session_state.show_translation = False
                 st.rerun()
                 
-        # Configuration 3: Mid-tier sequence flow step back
+        # Configuration 3: Mid-tier sequence flow step back (Icon removed)
         else:
-            if st.button("⬅️ Previous", use_container_width=True):
+            if st.button("Previous", use_container_width=True):
                 if is_first_line_of_conv:
                     current_conv_idx = available_conv_ids.index(st.session_state.current_conversation_id)
                     st.session_state.current_conversation_id = available_conv_ids[current_conv_idx - 1]
@@ -337,7 +346,6 @@ if not df_all.empty:
                     st.session_state.show_translation = False
                     st.rerun()
             elif st.session_state.current_scenario_idx < len(unique_scenarios) - 1:
-                # Icon removed, pure text trigger target loop
                 if st.button("Next Topic", type="primary", use_container_width=True):
                     st.session_state.current_scenario_idx += 1
                     st.session_state.current_conversation_id = None
