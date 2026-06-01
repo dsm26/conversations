@@ -26,13 +26,15 @@ else:
 # 2. HELPER FUNCTIONS
 # ----------------------------------------------------
 def build_google_sheet_csv_url(spreadsheet_id, worksheet_name):
-    """Constructs a direct CSV export URL using the spreadsheet ID and worksheet tab name."""
-    base_export_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/export?format=csv"
-    # URL-encode the worksheet name to safely handle spaces, numbers, and accents
+    """
+    Constructs a direct CSV export URL using the Google Visualization API.
+    This query structure properly honors text-based worksheet tab names (like 'Conversations').
+    """
+    base_url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/gviz/tq"
     encoded_worksheet = urllib.parse.quote(worksheet_name)
-    return f"{base_export_url}&sheet={encoded_worksheet}"
+    return f"{base_url}?tqx=out:csv&sheet={encoded_worksheet}"
 
-@st.cache_data(ttl=60)  # Low cache limit (1 min) to make debugging sheet column fixes easy
+@st.cache_data(ttl=60)  # Low cache limit (1 min) to easily track structural changes
 def load_scenario_data(spreadsheet_id, worksheet_name):
     """Fetches data from a specific Google Sheet tab, normalizes headers, and sorts by sequence."""
     try:
@@ -47,7 +49,6 @@ def load_scenario_data(spreadsheet_id, worksheet_name):
         required = ['scenario_name', 'sequence', 'speaker_tag', 'is_user', 'italian', 'english']
         missing = [col for col in required if col not in df.columns]
         if missing:
-            # Provide a clear breakdown of what was found vs what was expected to pinpoint sheet layout issues
             st.error(f"⚠️ **Column Alignment Error in Tab '{worksheet_name}'**")
             st.info(f"**Expected Columns:** {required}\n\n**Actual Columns Found (Cleaned):** {list(df.columns)}")
             st.markdown("Please ensure row 1 of your Google Sheet contains these distinct cell headers exactly.")
@@ -139,8 +140,7 @@ if not df_all.empty:
         bg_color = "#e8f0fe" if is_user else "#f1f3f4"
         text_color = "#1a73e8" if is_user else "#3c4043"
         
-        # Injected Custom CSS styling 'font-family: Consolas, Monaco, monospace;' 
-        # to ensure explicit visual separation between 'l' and 'I'
+        # Custom CSS font-family stack explicitly ensures visual separation between 'l' and 'I'
         st.markdown(
             f"""
             <div style="text-align: {alignment}; margin-bottom: 20px;">
