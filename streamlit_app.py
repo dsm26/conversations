@@ -9,20 +9,23 @@ import urllib.parse
 # ----------------------------------------------------
 st.set_page_config(page_title="Scenario Walkthrough", page_icon="🗣️", layout="centered")
 
-# 📱 INJECT ERGONOMIC MOBILE FLEXBOX FORCE STYLING
+# 📱 HARDENED CSS GRID FOR SIDE-BY-SIDE MOBILE BUTTONS WITHOUT SCROLLBARS
 st.html("""
     <style>
-        /* Force Streamlit column blocks to stay side-by-side on mobile screens */
+        /* Force the column container to act as a 50/50 grid layout */
         [data-testid="stHorizontalBlock"] {
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 10px !important;
             width: 100% !important;
+            overflow: hidden !important;
         }
+        /* Reset Streamlit's inner padding overflows on individual columns */
         [data-testid="column"] {
-            width: 50% !important;
-            flex: 1 1 auto !important;
+            width: 100% !important;
             min-width: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
         }
     </style>
 """)
@@ -194,7 +197,7 @@ if not df_all.empty:
         st.session_state.show_translation = not st.session_state.show_translation
         st.rerun()
 
-    # Layout Row: Navigation layout forced side-by-side using styling hooks
+    # Layout Row: Controlled dynamically by grid styles to lock columns at precisely 50% screen width
     nav_col_left, nav_col_right = st.columns(2)
 
     with nav_col_left:
