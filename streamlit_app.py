@@ -154,21 +154,23 @@ if not df_all.empty:
 
     st.sidebar.write("---")
     
-    # "Jump to scenario" selector widget setup
-    selected_sidebar_label = st.sidebar.selectbox(
+    # CALLBACK HANDLING: Updates indices perfectly when using the selectbox manual override
+    def handle_scenario_jump():
+        if "scenario_selector_widget" in st.session_state:
+            chosen_label = st.session_state.scenario_selector_widget
+            st.session_state.current_scenario_idx = sidebar_labels.index(chosen_label)
+            st.session_state.current_conversation_id = None
+            st.session_state.current_line_sequence = 1
+            st.session_state.show_translation = False
+
+    # "Jump to scenario" selector widget setup with bound callback routine
+    st.sidebar.selectbox(
         "Jump to scenario:",
         sidebar_labels,
         index=st.session_state.current_scenario_idx,
-        key="scenario_selector_widget"
+        key="scenario_selector_widget",
+        on_change=handle_scenario_jump
     )
-    
-    # Detect deliberate user jump modification event
-    new_idx = sidebar_labels.index(selected_sidebar_label)
-    if new_idx != st.session_state.current_scenario_idx:
-        st.session_state.current_scenario_idx = new_idx
-        st.session_state.current_conversation_id = None
-        st.session_state.current_line_sequence = 1
-        st.session_state.show_translation = False
 
     # Render data synchronization performance tracking telemetry
     st.sidebar.markdown("---")
@@ -233,11 +235,10 @@ if not df_all.empty:
         
         st.markdown(full_speaker_label)
         
-        # FIX: Native container handles light/dark themes perfectly and expands with zero clipping or blinking
+        # Native container expands with zero clipping, flashing, or dark/light theme mismatch bugs
         with st.container(border=True):
             st.markdown(f"### {prompt_text}")
             if st.session_state.show_translation:
-                # Uses a native subheader text block for high contrast on phone screens
                 st.markdown(f" :red[*{translation_text}*]")
 
     # ----------------------------------------------------
