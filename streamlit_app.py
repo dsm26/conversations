@@ -9,47 +9,24 @@ import urllib.parse
 # ----------------------------------------------------
 st.set_page_config(page_title="Scenario Walkthrough", page_icon="🗣️", layout="centered")
 
-# 📱 INDESTRUCTIBLE 2x2 IPHONE LAYOUT GRID MATRIX
+# 📱 CLEAN TWO-ROW MOBILE BREAKPOINT PROTECTION
 st.html("""
     <style>
-        /* Lock down a clean 2x2 grid viewport container */
+        /* Force side-by-side execution on iPhone Safari/Chrome screens */
         [data-testid="stHorizontalBlock"] {
-            display: grid !important;
-            grid-template-columns: 1fr 1fr !important;   /* 2 perfectly equal columns */
-            grid-template-rows: auto auto !important;     /* 2 independent row flows */
-            gap: 12px 10px !important;                     /* Spacing: Row, Column */
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            gap: 10px !important;
             width: 100% !important;
-            overflow: hidden !important;
         }
-        
-        /* Strip default responsive collapse/stacking breakpoints on mobile viewports */
         [data-testid="column"] {
-            width: 100% !important;
+            flex: 1 1 25% !important; /* 4 uniform columns across the container grid */
             min-width: 0 !important;
             padding: 0 !important;
             margin: 0 !important;
         }
-
-        /* 🗺️ EXACT GRID POSITION MAPPING BLUEPRINT:
-           - Column 1 (Translate Button)   -> Row 1, Column 2 [Top Right]
-           - Column 2 (Previous Button)    -> Row 2, Column 1 [Bottom Left]
-           - Column 3 (Next Button)        -> Row 2, Column 2 [Bottom Right]
-           (Row 1, Column 1 is automatically left empty)
-        */
-        [data-testid="column"]:nth-of-type(1) {
-            grid-row: 1 !important;
-            grid-column: 2 !important;
-        }
-        [data-testid="column"]:nth-of-type(2) {
-            grid-row: 2 !important;
-            grid-column: 1 !important;
-        }
-        [data-testid="column"]:nth-of-type(3) {
-            grid-row: 2 !important;
-            grid-column: 2 !important;
-        }
-
-        /* Keep button text content completely locked from awkward wrapping or spills */
+        /* Lock vertical line-height alignment */
         .stButton > button {
             white-space: nowrap !important;
             word-break: keep-all !important;
@@ -211,7 +188,7 @@ if not df_all.empty:
                 st.markdown(f"*{translation_text}*")
 
     # ----------------------------------------------------
-    # 5. NAVIGATION CONTROLS & MOBILITY ERGONOMICS
+    # 5. NAVIGATION CONTROLS & ERGONOMICS (ROW 1 & ROW 2)
     # ----------------------------------------------------
     min_seq = int(df_current_conv['sequence'].min())
     max_seq = int(df_current_conv['sequence'].max())
@@ -221,26 +198,25 @@ if not df_all.empty:
 
     st.write("") 
     
-    # Generate columns. The style definitions above place them cleanly in a 2x2 grid.
-    col_1, col_2, col_3 = st.columns(3)
-
-    with col_1:
-        # Assigned to Row 1, Column 2 (Top Right)
+    # --- ROW 1: [EMPTY] | TRANSLATE ---
+    row1_left, row1_right = st.columns(2)
+    with row1_left:
+        pass # Intentionally empty space
+    with row1_right:
         if st.button("Translate", use_container_width=True):
             st.session_state.show_translation = not st.session_state.show_translation
             st.rerun()
 
-    with col_2:
-        # Assigned to Row 2, Column 1 (Bottom Left)
+    # --- ROW 2: PREVIOUS | NEXT ---
+    row2_left, row2_right = st.columns(2)
+    with row2_left:
         if st.button("⬅️ Previous", disabled=is_first_line, use_container_width=True):
             prev_seqs = df_current_conv[df_current_conv['sequence'] < st.session_state.current_line_sequence]['sequence']
             if not prev_seqs.empty:
                 st.session_state.current_line_sequence = int(prev_seqs.max())
                 st.session_state.show_translation = False
                 st.rerun()
-
-    with col_3:
-        # Assigned to Row 2, Column 2 (Bottom Right)
+    with row2_right:
         if is_last_line:
             current_conv_idx = available_conv_ids.index(st.session_state.current_conversation_id)
             
