@@ -9,25 +9,42 @@ import urllib.parse
 # ----------------------------------------------------
 st.set_page_config(page_title="Scenario Walkthrough", page_icon="🗣️", layout="centered")
 
-# 📱 CUSTOM CSS TO HANDLE STACKING AND SIDE-BY-SIDE MOBILE ALIGNMENT
+# 📱 HARDENED 2x2 GRID FOR IPHONE CHROME & SAFARI VIEWPORTS
 st.html("""
     <style>
-        /* Keep columns side-by-side on mobile without splitting or wrapping */
+        /* Target the horizontal block structure container */
         [data-testid="stHorizontalBlock"] {
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important; /* 2 equal columns */
+            grid-template-rows: auto auto !important;   /* 2 responsive rows */
             gap: 10px !important;
             width: 100% !important;
+            overflow: hidden !important;
         }
+        
+        /* Strip default structural responsive breakpoints that trigger stacking on mobile */
         [data-testid="column"] {
-            flex: 1 1 50% !important;
+            width: 100% !important;
             min-width: 0 !important;
             padding: 0 !important;
+            margin: 0 !important;
         }
-        /* Tighten vertical spacing inside the right column stack */
-        [data-testid="column"]:nth-of-type(2) [data-testid="stVerticalBlockBorderWrapper"] > div > div {
-            gap: 8px !important;
+
+        /* 🗺️ DEFINE THE EXACT POSITION GRID CELL MAP:
+           Row 1: Empty Column [1] | Translate Column [2]
+           Row 2: Previous Column [3] | Next Column [4]
+        */
+        [data-testid="column"]:nth-of-type(1) {
+            grid-column: 2 !important;
+            grid-row: 1 !important;
+        }
+        [data-testid="column"]:nth-of-type(2) {
+            grid-column: 1 !important;
+            grid-row: 2 !important;
+        }
+        [data-testid="column"]:nth-of-type(3) {
+            grid-column: 2 !important;
+            grid-row: 2 !important;
         }
     </style>
 """)
@@ -185,7 +202,7 @@ if not df_all.empty:
                 st.markdown(f"*{translation_text}*")
 
     # ----------------------------------------------------
-    # 5. ERGONOMIC MOBILE NAVIGATION CONTROLS
+    # 5. NAVIGATION CONTROLS & ERGONOMICS
     # ----------------------------------------------------
     min_seq = int(df_current_conv['sequence'].min())
     max_seq = int(df_current_conv['sequence'].max())
@@ -195,10 +212,17 @@ if not df_all.empty:
 
     st.write("") 
     
-    # Left Column holds Previous. Right Column stacks Translate vertically on top of Next.
-    col_left, col_right = st.columns(2)
+    # We declare 3 columns. The CSS grid overrides their layout alignment into the proper 2x2 form factor.
+    btn_col_1, btn_col_2, btn_col_3 = st.columns(3)
 
-    with col_left:
+    with btn_col_1:
+        # Maps directly to Row 1, Column 2 (Right side)
+        if st.button("Translate", use_container_width=True):
+            st.session_state.show_translation = not st.session_state.show_translation
+            st.rerun()
+
+    with btn_col_2:
+        # Maps directly to Row 2, Column 1 (Left side)
         if st.button("⬅️ Previous", disabled=is_first_line, use_container_width=True):
             prev_seqs = df_current_conv[df_current_conv['sequence'] < st.session_state.current_line_sequence]['sequence']
             if not prev_seqs.empty:
@@ -206,12 +230,8 @@ if not df_all.empty:
                 st.session_state.show_translation = False
                 st.rerun()
 
-    with col_right:
-        # Translate goes directly above Next
-        if st.button("Translate", use_container_width=True):
-            st.session_state.show_translation = not st.session_state.show_translation
-            st.rerun()
-            
+    with btn_col_3:
+        # Maps directly to Row 2, Column 2 (Right side)
         if is_last_line:
             current_conv_idx = available_conv_ids.index(st.session_state.current_conversation_id)
             
