@@ -9,46 +9,55 @@ import urllib.parse
 # ----------------------------------------------------
 st.set_page_config(page_title="Scenario Walkthrough", page_icon="🗣️", layout="centered")
 
-# 📱 ULTIMATE MOBILE VIEWPORT ESCAPE HACK (FORCES INTENDED 2x2 SHAPE ON IPHONE)
+# 📱 BULLETPROOF NATIVE CSS GRID LAYOUT ENGINE (ZERO SCROLLBARS)
 st.html("""
     <style>
-        /* 1. Force the outer container block to match the phone screen width exactly */
-        div[data-testid="stHorizontalBlock"] {
+        /* Target the single button container wrapper */
+        div.custom-button-grid > div [data-testid="stVerticalBlockBorderWrapper"] > div > div {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important; /* 2 perfectly equal columns */
+            grid-template-rows: 42px 42px !important;    /* 2 rows with exact rigid heights */
+            gap: 12px 10px !important;                  /* Spacing: Row gap, Column gap */
             width: 100% !important;
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important; /* Block columns from shifting down */
-            gap: 12px !important;
+            max-width: 100% !important;
+            overflow: hidden !important;
         }
-        
-        /* 2. Break Streamlit's hidden layout constraints and force a strict 50/50 split */
-        div[data-testid="column"] {
-            width: 50% !important;
-            max-width: 50% !important;
-            min-width: 0 !important; /* Obliterates the hidden ~320px minimum column width constraint */
-            flex: 1 1 50% !important;
+
+        /* 🗺️ PRECISE INTERFACE SLOT COORDINATE MAP
+           We bypass column components entirely and position the native button elements directly:
+           - Button 1 (Translate)      -> Row 1, Column 2 (Top Right)
+           - Button 2 (⬅️ Previous)    -> Row 2, Column 1 (Bottom Left)
+           - Button 3 (Next / Action)  -> Row 2, Column 2 (Bottom Right)
+           (Row 1, Column 1 remains cleanly unoccupied)
+        */
+        div.custom-button-grid div.stButton:nth-of-type(1) {
+            grid-row: 1 !important;
+            grid-column: 2 !important;
+        }
+        div.custom-button-grid div.stButton:nth-of-type(2) {
+            grid-row: 2 !important;
+            grid-column: 1 !important;
+        }
+        div.custom-button-grid div.stButton:nth-of-type(3) {
+            grid-row: 2 !important;
+            grid-column: 2 !important;
+        }
+
+        /* Strip default margins and force full padding containment */
+        div.custom-button-grid div.stButton {
+            width: 100% !important;
+            margin: 0 !important;
             padding: 0 !important;
-            margin: 0 !important;
         }
 
-        /* 3. Tighten the space between stacked rows within the columns */
-        div[data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"] > div > div {
-            gap: 12px !important;
-        }
-        
-        /* 4. Strip extra padding from button wrapper divs to guarantee zero bleed */
-        div.stButton {
-            width: 100% !important;
-            margin: 0 !important;
-        }
-
-        /* 5. Force text to stay in a clean single line inside the button borders */
-        div.stButton > button {
+        /* Lock down button styling attributes inside browser viewport windows */
+        div.custom-button-grid div.stButton > button {
             white-space: nowrap !important;
             word-break: keep-all !important;
             width: 100% !important;
-            padding: 0px 8px !important;
             height: 42px !important;
+            padding: 0px 8px !important;
+            margin: 0 !important;
         }
     </style>
 """)
@@ -206,7 +215,7 @@ if not df_all.empty:
                 st.markdown(f"*{translation_text}*")
 
     # ----------------------------------------------------
-    # 5. FIXED MULTI-ROW CONTROLS (50/50 EMBEDDED BLOCK)
+    # 5. FIXED CONTROLS ENGINE (SINGLE FLAT CONTAINER GRID)
     # ----------------------------------------------------
     min_seq = int(df_current_conv['sequence'].min())
     max_seq = int(df_current_conv['sequence'].max())
@@ -216,14 +225,16 @@ if not df_all.empty:
 
     st.write("") 
     
-    # Executing everything inside a single, bound container split
-    col_left, col_right = st.columns(2)
-
-    with col_left:
-        # Row 1, Left: Empty structural spacer matching standard action button block height
-        st.html('<div style="height: 42px;"></div>')
+    # By placing all buttons inside one flat container block with a custom CSS anchor class,
+    # we can manipulate the position layout completely independently of Streamlit primitives.
+    with st.container(key="custom-button-grid"):
         
-        # Row 2, Left: Previous button
+        # Element index 1 -> Routed via CSS to Row 1, Column 2 [Translate]
+        if st.button("Translate", use_container_width=True):
+            st.session_state.show_translation = not st.session_state.show_translation
+            st.rerun()
+
+        # Element index 2 -> Routed via CSS to Row 2, Column 1 [⬅️ Previous]
         if st.button("⬅️ Previous", disabled=is_first_line, use_container_width=True):
             prev_seqs = df_current_conv[df_current_conv['sequence'] < st.session_state.current_line_sequence]['sequence']
             if not prev_seqs.empty:
@@ -231,13 +242,7 @@ if not df_all.empty:
                 st.session_state.show_translation = False
                 st.rerun()
 
-    with col_right:
-        # Row 1, Right: Translate button
-        if st.button("Translate", use_container_width=True):
-            st.session_state.show_translation = not st.session_state.show_translation
-            st.rerun()
-            
-        # Row 2, Right: Next button stack
+        # Element index 3 -> Routed via CSS to Row 2, Column 2 [Next Stack]
         if is_last_line:
             current_conv_idx = available_conv_ids.index(st.session_state.current_conversation_id)
             
