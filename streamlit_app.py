@@ -161,14 +161,18 @@ if not df_all.empty:
     if not current_row.empty:
         row = current_row.iloc[0]
         
-        # 🛡️ SANITIZATION ESCAPES: Replaces characters that mess up markdown or break HTML formatting
-        speaker = str(row['speaker_tag']).replace('"', '&quot;').replace("'", "&#39;")
+        # 🛡️ SANITIZATION ESCAPES
+        speaker_name = str(row['speaker_tag']).replace('"', '&quot;').replace("'", "&#39;")
         is_user = bool(row['is_user'])
+        
+        # Calculate suffix out here to completely avoid Python f-string tokenization limits
+        user_suffix = " (You)" if is_user else ""
+        full_speaker_label = f"{speaker_name}{user_suffix}"
         
         raw_prompt = str(row['italian']) if target_first else str(row['english'])
         raw_translation = str(row['english']) if target_first else str(row['italian'])
         
-        # Escape HTML structural conflicts and prevent Streamlit math block rendering issues ($)
+        # Escape string symbols that could cause issues with Markdown/HTML formatting
         prompt_text = raw_prompt.replace('"', '&quot;').replace("'", "&#39;").replace('$', '\$')
         translation_text = raw_translation.replace('"', '&quot;').replace("'", "&#39;").replace('$', '\$')
         
@@ -176,11 +180,11 @@ if not df_all.empty:
         bg_color = "#e8f0fe" if is_user else "#f1f3f4"
         text_color = "#1a73e8" if is_user else "#3c4043"
         
-        # Inject styling elements carefully
+        # Build raw strings with zero inner conditional calculations
         chat_html = (
             f'<div style="text-align: {alignment}; margin-bottom: 20px;">'
             f'    <span style="font-size: 0.85em; font-weight: bold; color: #5f6368; display: block; margin-bottom: 4px; font-family: -apple-system, sans-serif;">'
-            f'        {speaker} {"(You)" if is_user else ""}'
+            f'        {full_speaker_label}'
             f'    </span>'
             f'    <div style="display: inline-block; padding: 14px 20px; background-color: {bg_color}; '
             f'                border-radius: 15px; max-width: 75%; text-align: left; '
