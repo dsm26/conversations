@@ -32,7 +32,7 @@ def build_google_sheet_csv_url(spreadsheet_id, worksheet_name):
     encoded_worksheet = urllib.parse.quote(worksheet_name)
     return f"{base_export_url}&sheet={encoded_worksheet}"
 
-@st.cache_data(ttl=300)  # Caches data for 5 minutes
+@st.cache_data(ttl=60)  # Low cache limit (1 min) to make debugging sheet column fixes easy
 def load_scenario_data(spreadsheet_id, worksheet_name):
     """Fetches data from a specific Google Sheet tab, normalizes headers, and sorts by sequence."""
     try:
@@ -47,7 +47,10 @@ def load_scenario_data(spreadsheet_id, worksheet_name):
         required = ['scenario_name', 'sequence', 'speaker_tag', 'is_user', 'italian', 'english']
         missing = [col for col in required if col not in df.columns]
         if missing:
-            st.error(f"Missing required columns in tab '{worksheet_name}': {missing}")
+            # Provide a clear breakdown of what was found vs what was expected to pinpoint sheet layout issues
+            st.error(f"⚠️ **Column Alignment Error in Tab '{worksheet_name}'**")
+            st.info(f"**Expected Columns:** {required}\n\n**Actual Columns Found (Cleaned):** {list(df.columns)}")
+            st.markdown("Please ensure row 1 of your Google Sheet contains these distinct cell headers exactly.")
             return pd.DataFrame()
             
         df['sequence'] = pd.to_numeric(df['sequence']).astype(int)
@@ -136,16 +139,20 @@ if not df_all.empty:
         bg_color = "#e8f0fe" if is_user else "#f1f3f4"
         text_color = "#1a73e8" if is_user else "#3c4043"
         
+        # Injected Custom CSS styling 'font-family: Consolas, Monaco, monospace;' 
+        # to ensure explicit visual separation between 'l' and 'I'
         st.markdown(
             f"""
             <div style="text-align: {alignment}; margin-bottom: 20px;">
-                <span style="font-size: 0.85em; font-weight: bold; color: #5f6368; display: block; margin-bottom: 4px;">
+                <span style="font-size: 0.85em; font-weight: bold; color: #5f6368; display: block; margin-bottom: 4px; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
                     {speaker} {'(You)' if is_user else ''}
                 </span>
                 <div style="display: inline-block; padding: 14px 20px; background-color: {bg_color}; 
                             border-radius: 15px; max-width: 75%; text-align: left; 
                             box-shadow: 0 1px 2px rgba(0,0,0,0.1); border: 1px solid rgba(0,0,0,0.05);">
-                    <p style="font-size: 1.25em; margin: 0; color: {text_color}; font-weight: 500;">{prompt_text}</p>
+                    <p style="font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 1.3em; margin: 0; color: {text_color}; font-weight: 500; letter-spacing: 0.5px;">
+                        {prompt_text}
+                    </p>
                 </div>
             </div>
             """, 
@@ -163,8 +170,10 @@ if not df_all.empty:
                 f"""
                 <div style="background-color: #f8f9fa; padding: 15px; border-left: 5px solid #34a853; 
                             border-radius: 4px; margin: 15px 0; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);">
-                    <strong style="color: #202124;">Translation:</strong>
-                    <p style="font-size: 1.15em; margin-top: 5px; color: #3c4043; font-style: italic;">{translation_text}</p>
+                    <strong style="color: #202124; font-family: -apple-system, sans-serif;">Translation:</strong>
+                    <p style="font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 1.2em; margin-top: 5px; color: #3c4043; font-style: italic;">
+                        {translation_text}
+                    </p>
                 </div>
                 """, 
                 unsafe_html=True
