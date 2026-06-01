@@ -9,20 +9,20 @@ import urllib.parse
 # ----------------------------------------------------
 st.set_page_config(page_title="Scenario Walkthrough", page_icon="🗣️", layout="centered")
 
-# 📱 HARDENED CSS GRID MAP FOR IPHONE SAFARI & CHROME VIEWPORTS
+# 📱 INDESTRUCTIBLE 2x2 IPHONE LAYOUT GRID MATRIX
 st.html("""
     <style>
-        /* Force container to act as a precise 2x2 grid framework */
+        /* Lock down a clean 2x2 grid viewport container */
         [data-testid="stHorizontalBlock"] {
             display: grid !important;
-            grid-template-columns: 1fr 1fr !important;   /* 2 equal columns */
-            grid-template-rows: auto auto !important;     /* 2 independent rows */
-            gap: 12px 10px !important;                     /* Row gap, Column gap */
+            grid-template-columns: 1fr 1fr !important;   /* 2 perfectly equal columns */
+            grid-template-rows: auto auto !important;     /* 2 independent row flows */
+            gap: 12px 10px !important;                     /* Spacing: Row, Column */
             width: 100% !important;
             overflow: hidden !important;
         }
         
-        /* Strip default responsive padding and breakpoint wrap mechanics */
+        /* Strip default responsive collapse/stacking breakpoints on mobile viewports */
         [data-testid="column"] {
             width: 100% !important;
             min-width: 0 !important;
@@ -30,25 +30,26 @@ st.html("""
             margin: 0 !important;
         }
 
-        /* 🗺️ TARGET POSITION CELL MAP:
-           - Column 1 (Translate Button)   -> Cell Row 2, Column 2 (Bottom Right)
-           - Column 2 (Previous Button)    -> Cell Row 1, Column 2 (Top Right)
-           - Column 3 (Next Button)        -> Cell Row 2, Column 1 (Bottom Left)
+        /* 🗺️ EXACT GRID POSITION MAPPING BLUEPRINT:
+           - Column 1 (Translate Button)   -> Row 1, Column 2 [Top Right]
+           - Column 2 (Previous Button)    -> Row 2, Column 1 [Bottom Left]
+           - Column 3 (Next Button)        -> Row 2, Column 2 [Bottom Right]
+           (Row 1, Column 1 is automatically left empty)
         */
         [data-testid="column"]:nth-of-type(1) {
+            grid-row: 1 !important;
             grid-column: 2 !important;
-            grid-row: 2 !important;
         }
         [data-testid="column"]:nth-of-type(2) {
-            grid-column: 2 !important;
-            grid-row: 1 !important;
+            grid-row: 2 !important;
+            grid-column: 1 !important;
         }
         [data-testid="column"]:nth-of-type(3) {
-            grid-column: 1 !important;
             grid-row: 2 !important;
+            grid-column: 2 !important;
         }
 
-        /* Normalize button element padding properties across browser viewports */
+        /* Keep button text content completely locked from awkward wrapping or spills */
         .stButton > button {
             white-space: nowrap !important;
             word-break: keep-all !important;
@@ -210,7 +211,7 @@ if not df_all.empty:
                 st.markdown(f"*{translation_text}*")
 
     # ----------------------------------------------------
-    # 5. NAVIGATION CONTROLS & ERGONOMICS
+    # 5. NAVIGATION CONTROLS & MOBILITY ERGONOMICS
     # ----------------------------------------------------
     min_seq = int(df_current_conv['sequence'].min())
     max_seq = int(df_current_conv['sequence'].max())
@@ -220,17 +221,17 @@ if not df_all.empty:
 
     st.write("") 
     
-    # Generate 3 semantic column blocks. The grid styles handle layout placement perfectly.
+    # Generate columns. The style definitions above place them cleanly in a 2x2 grid.
     col_1, col_2, col_3 = st.columns(3)
 
     with col_1:
-        # Assigned via CSS grid definition to Row 2, Column 2 (Bottom Right)
+        # Assigned to Row 1, Column 2 (Top Right)
         if st.button("Translate", use_container_width=True):
             st.session_state.show_translation = not st.session_state.show_translation
             st.rerun()
 
     with col_2:
-        # Assigned via CSS grid definition to Row 1, Column 2 (Top Right)
+        # Assigned to Row 2, Column 1 (Bottom Left)
         if st.button("⬅️ Previous", disabled=is_first_line, use_container_width=True):
             prev_seqs = df_current_conv[df_current_conv['sequence'] < st.session_state.current_line_sequence]['sequence']
             if not prev_seqs.empty:
@@ -239,7 +240,7 @@ if not df_all.empty:
                 st.rerun()
 
     with col_3:
-        # Assigned via CSS grid definition to Row 2, Column 1 (Bottom Left)
+        # Assigned to Row 2, Column 2 (Bottom Right)
         if is_last_line:
             current_conv_idx = available_conv_ids.index(st.session_state.current_conversation_id)
             
